@@ -1,0 +1,61 @@
+title Infrastructure Lifecycle
+
+alt Create
+note left of dev:
+(re) create infrastructure from scratch
+end note
+dev -> source: development
+source -> Version Control: change management
+Version Control -> CI: build/test
+CI -> CD: deploy
+CD -> Infrastructure: provision
+CD -> Kubernetes: create
+CD -> App: deploy
+Infrastructure -> App: parameters
+
+else Update Infro
+dev -> Infrastructure: update
+note left of dev:
+Specifics TBD
+end note
+
+else Update Kubernetes
+dev -> Kubernetes: update
+note left of dev:
+Specifics TBD
+end note
+
+else Update App
+note left of dev:
+App (re)deployment
+end note
+dev -> source: update
+source -> Version Control:
+Version Control -> CI:
+CI -> CD:
+CD -> Kubernetes: update
+Kubernetes -> App: updat
+
+else Delete (graceful)
+note left of dev:
+delete infrastructure 
+- goal is a $0 bill going forward
+end note
+dev -> CD: teardown
+CD -> App: terminate (gracefully)
+App -> CD: terminated
+CD -> Kubernetes: terminate (gracefully)
+Kubernetes -> CD: terminated
+CD -> Infrastructure: terminate (gracefully)
+Infrastructure  -> CD: terminated
+
+else Delete (panic)
+note left of dev:
+delete in an emergency - typically 
+- a hacked system or 
+- a system gone haywire in other fashion.
+end note
+dev -> CD: destroy
+CD -> Infrastructure: desroy
+end
+s
