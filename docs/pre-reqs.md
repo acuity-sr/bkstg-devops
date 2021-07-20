@@ -38,7 +38,48 @@ If installing on your personal machine, it's best to install nodejs via the Node
     npm i yarn -g
   ```
 
-### 3. kubectl
+## tl;dr
+The remaining commands can be installed using the package managers we installed in step 1.
+We also list the commands locations for manual installation in case your system is not listed below.
 
-### 4. heml
+* windows
+```null
+choco install azure-cli
+choco install kubernetes-cli
+choco install kubens
+choco install kubectx
+choco install kubernetes-helm
+choco install gh
+```
 
+* macos
+```null
+brew install azure-cli
+brew install kubernetes-cli
+brew install kubectx
+brew install helm
+brew install gh
+```
+
+Please see instructions for your flavour of *nix at the links below.
+
+### 3. Azure CLI
+[Installation instructions](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli)
+
+### 4. kubectl the Kubernetes-CLI
+[Installation instructions](https://kubernetes.io/docs/tasks/tools/#kubectl)
+
+The Kubernetes command-line tool, [kubectl](https://kubernetes.io/docs/reference/kubectl/kubectl/), allows you to run commands against Kubernetes clusters. You can use kubectl to deploy applications, inspect and manage cluster resources, and view logs. For more information including a complete list of kubectl operations, see the [kubectl reference documentation](https://kubernetes.io/docs/reference/kubectl/).
+
+### 5. kubectx & kubens
+[Installation intructions](https://github.com/ahmetb/kubectx/#installation)
+Faster way to switch between clusters and namespaces in kubectl
+
+### 6. helm
+[Installation instructions](https://helm.sh/docs/intro/install/)
+
+Helm is the package manager for Kubernetes, and you can read detailed background information in the [CNCF Helm Project Journey report](https://www.cncf.io/reports/cncf-helm-project-journey-report/).
+
+### 7. github-cli
+[Installation instructions](https://github.com/cli/cli#installation)
+The github CLI - we use this to install github secrets when necessary

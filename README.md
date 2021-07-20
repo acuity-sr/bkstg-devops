@@ -87,15 +87,12 @@ a very high signal to noise ratio. A good investment.
 
 #### B.4.1 Git-ops/Infrastructure Lifecycle
 
-This section got too large and complex to fit inline and not be a distraction. Read all about it [here](./infra-lifecycle/infra-lifecycle.md).
-
-We are interested in an architecture that deploys an traditional 3-tiered app (ui, api, db) over
-a Kubernetes cluster which itself is deployed over provisioned public cloud infrastructure.
+The general idea is that our applications are traditional 3-tier apps, consisting of a UI, API and DB. We want to deploy the various pieces into a kubernetes cluster, which itself is provisioned over a public cloud (Azure) infrastructure.
 
 The goal is to build Infrastructure as Code (IaC), which allows us to treat as much of the
-infrastructure as cattle as possible. As we'll see, this is currently not a 100% certainty,
-but can be assured for some use-cases within the normal flow. We want this ability to make
-changes and possibly recreate the infrastructure at will
+infrastructure as cattle as possible.
+
+As we shall see in the remainder of this document, a large fraction of the common use-cases, we can accomplish this notion of treating our infrastructure as cattle. What we want really is an ability to create/update/delete/recreate the application and it's necessary infrastructure at will in am automated fashion.
 
 #### B.4.2 GitOps or not to GitOps? That is the question.
 
@@ -194,7 +191,7 @@ Other needs could include deploying
 
 We will be developing a create script that does each step in sequence, defining any needed environment variables as we go along.
 
-##### windows
+- `windows` (creates nix/run.bat)
 
 ```bat win/run.bat
 rem bootstrap
@@ -227,7 +224,7 @@ call deploy_app.bat
 
 ```
 
-##### \*nix
+- `*nix` (creates nix/run.sh)
 
 ```sh nix/run.sh
 # bootstrap
@@ -270,9 +267,12 @@ The subscription ID can vary by login. While it's possible (even preferable) to 
 
 The bootstrap script automates it's extraction - after you have logged via the azure CLI.
 
-##### windows
+- `windows` (creates win/bootstrap.bat)
 
 ```bat win/bootstrap.bat
+
+rem Opens a webpage to login to Azure and provides credentials to the azure-cli
+az login
 
 rem Subscription ID:
 rem (we are picking the 0 item in the array, change as needed)
@@ -282,9 +282,12 @@ echo SUBSCRIPTION_ID=%SUBSCRIPTION_ID%
 
 ```
 
-##### \*nix
+- `*nix` (creates nix/bootstrap.sh)
 
 ```sh nix/bootstrap.sh
+
+# Opens a webpage to login to Azure and provides credentials to the azure-cli
+az login
 
 # Subscription ID:
 # (we are picking the 0 item in the array, change as needed)
@@ -294,107 +297,163 @@ echo $SUBSCRIPTION_ID
 
 ```
 
-### 3.2 Service Principal
-
-A [service principal](https://docs.microsoft.com/en-us/cli/azure/create-an-azure-service-principal-azure-cli?toc=%2Fazure%2Fazure-resource-manager%2Ftoc.json&view=azure-cli-latest) provides authentication for automation/non-human entities. We can assign a "role" with specific access privileges or "Role based access control (RBAC)".
-
-##### windows
+### 3.2 Resource Group
+- `windows` (appends to win/bootstrap.bat)
 
 ```bat win/bootstrap.bat
 
-
 ```
 
-##### \*nix
+- `*nix` (appends to nix/bootstrap.sh)
 
 ```sh nix/bootstrap.sh
 
 ```
 
-## 5. Build
 
-##### windows
+### 3.3 Service Principal
+
+With subscription id in hand, we are now in a position to create our service principal.
+
+A [service principal](https://docs.microsoft.com/en-us/cli/azure/create-an-azure-service-principal-azure-cli?toc=%2Fazure%2Fazure-resource-manager%2Ftoc.json&view=azure-cli-latest) provides authentication for automation/non-human entities. We can assign a "role" with specific access privileges or "Role based access control (RBAC)".
+
+Creation of the service principal returns the authenticatin credentials. We will sore these to a file, allowing us to use this to setup secrets for github actions.
+
+> NOTE: It seems managed identities might be a better way to provide RBAC privileges. However we are unclear as to the final set of resources needed and whether all resources required will support Managed identities. A move to managed identities will need to be investigated and done at a later point in time.
+
+- `windows` (appends to win/bootstrap.bat)
+
+```bat win/bootstrap.bat
+
+rem create service principal
+SERVICE_PRINCIPAL=%APP_NAME%-sp
+
+az ad sp create-for-rbac \
+ --name "%SERVICE_PRINCIPAL%" \
+ --sdk-auth \
+ --role contributor \
+ --scopes /subscriptions/%SUBSCRIPTION_ID%/resourceGroups/%RESOURCE_GROUP%/providers/Microsoft.Web/sites/%APP_NAME% \
+  > SP_CREDENTIALS.dat
+
+
+```
+
+- `*nix` (appends to nix/bootstrap.sh)
+
+```sh nix/bootstrap.sh
+
+set SERVICE_PRINCIPAL=$APP_NAME-sp
+
+az ad sp create-for-rbac \
+  --name "$SERVICE_PRINCIPAL" \
+  --sdk-auth \
+  --role contributor \
+  --scopes /subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Web/sites/$APP_NAME \
+  > SP_CREDENTIALS.dat
+
+```
+
+
+
+## 4. Build
+
+- `windows` (creates win/app_build.bat)
 
 ```bat win/app_build.bat
 
 ```
 
-##### \*nix
+- `*nix` (creates nix/app_build.sh)
 
 ```sh nix/app_build.sh
 
 ```
 
-## 6. Infrastructure
+## 5. Infrastructure
 
-### 6.1 Create
+### 5.1 Create
 
-##### windows
+- `windows` (creates win/create_infra.bat)
 
 ```bat win/create_infra.bat
 
 ```
 
-##### \*nix
+- `*nix` (creates nix/create_infra.sh)
 
 ```sh nix/create_infra.sh
 
 ```
 
-## 7. Config
+## 6. Config
 
-### 7.1 Create
+### 6.1 Create
 
-##### windows
+- `windows` (creates win/create_kubernetes.bat)
 
 ```bat win/create_kubernetes.bat
 
 ```
 
-##### \*nix
+- `*nix` (creates nix/create_kubernetes.sh)
 
 ```sh nix/create_kubernetes.sh
 
 ```
 
-### 7.2 Api
+### 6.2 Api
 
-#### 7.2.1 Deployment
+#### 6.2.1 Deployment
+
+- creates api-deployment.yml
 
 ```yaml api-deployment.yml
 
 ```
 
-#### 7.2.2 Service
+#### 6.2.2 Service
 
-```yaml api-service.yml
+- creates api-service.yml
 
-```
-
-### 7.3 UI
-
-#### 7.3.1 Deployment
-
-```yaml ui-deployment.yml
+```yml api-service.yml
 
 ```
 
-#### 7.3.2 Service
+### 6.3 UI
 
-```yaml ui-service.yml
+#### 6.3.1 Deployment
+
+- creates ui-deployment.yml
+
+```yml ui-deployment.yml
 
 ```
 
-## 8. Deploy
+#### 6.3.2 Service
 
-##### windows
+- creates ui-service.yml
+
+```yml ui-service.yml
+
+```
+
+## 7. Deploy
+
+- `windows` (creates win/app_deploy.bat)
 
 ```bat win/app_deploy.bat
 
 ```
 
-##### \*nix
+- `*nix` (creates nix/app_deploy.sh)
 
 ```sh nix/app_deploy.sh
 
 ```
+
+## TODO
+
+These are a list of enhancements to be worked upon in next iterations
+[ ] Managed Identities
+[ ] Azure Key Vault to store secrets
+[ ] terraform for infrastructure specification and deployment

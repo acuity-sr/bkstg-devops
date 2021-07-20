@@ -1,13 +1,19 @@
 {
   "name": "bkstg-devops",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Dev-ops flow for Acuity backstage",
   "scripts": {
+    "gen": "doable README.md scripts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "acuity",
+    "backstage",
+    "app",
+    "azure",
+    "dev-ops"
+  ],
+  "author": "Shishir Ramam",
   "license": "ISC",
   "dependencies": {
     "doable": "github:acuity-sr/doable"
