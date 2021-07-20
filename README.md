@@ -30,7 +30,7 @@ NOTE: If in doubt, select an SQLITE database. We will presume that you selected 
 
 If you are unsure, it's ok to generate the application with a sqlite datastore. Presuming we called the app `bkstg`, this creates a mono-repo with two npm "packages"
 
-```
+```null
 bkstg
 └── packages
     ├── app       # the front-end/web-ui
@@ -45,17 +45,17 @@ This step does a `yarn install` - which takes a bit to complete.
 
 If you find yourself contemplating the end-of-time, instead consider jumping ahead to the next section.
 
-## Some Background
+## Background
 
-This document is targeted at engineers who might be very competent and senior, but are new to the dev-ops landscape, Azure, and Kubernetes. It is not meant to be a comprehensive tutorial. However, if you only have the time to read this document, we provide curated links to external resources that you might find to be of good value (and to boost the "wholesome" claims of this document!)
+This document is targeted at engineers who might be very competent and senior, but are new to the dev-ops landscape, Azure, and Kubernetes. While it is not meant to be a comprehensive tutorial, in a crunch, it should provide enough structure and/or pointers to external resources that will allow you to "get things done" and fill in the blanks later.
 
-### Cattle Not Pets
+### B.1 Cattle Not Pets
 
 A requirement of modern reliable systems is quick recovery from any kind of failure. A recurring meme around this notion is to treat infrastructure and indeed any part of the application itself as ["cattle not pets"](http://cloudscaling.com/blog/cloud-computing/the-history-of-pets-vs-cattle/)
 
 > In the old way of doing things, we treat our servers like pets, for example Bob the mail server. If Bob goes down, it’s all hands on deck. The CEO can’t get his email and it’s the end of the world. In the new way, servers are numbered, like cattle in a herd. For example, www001 to www100. When one server goes down, it’s taken out back, shot, and replaced on the line.
 
-### Azure Management Scope
+### B.2 Azure Management Scope
 
 When working with Azure, it's important understand how Azure organizes the infrastructure for management, billing and security purposes. While complex setups are probably an overkill here,
 it is good to have a bare minimum of understanding, so we'll know where to go look when our needs grow.
@@ -74,141 +74,327 @@ In the remainder of this exercise, we will assume that your "Azure login" is bou
 > It's possible that our `yarn install` has completed by this point. Jump ahead to [#]().
 > We'll refer you back to this section before it becomes necessary.
 
-### Kubernetes
+### B.3 Kubernetes
 
 Azure provides a [quick introduction to Kubernetes](https://azure.microsoft.com/en-us/topic/what-is-kubernetes/). If you are just getting started with kubernetes, this is a great place to get started.
 
 If you are a seasoned engineer but new to Kubernetes, [Kubernetes Best Practices](https://www.youtube.com/watch?v=wGz_cbtCiEA&list=PLIivdWyY5sqL3xfXz5xJvwzFW_tlQB_GB) the playlist of 7 videos by Sandeep Dinesh from [Google Cloud Tech](https://www.youtube.com/channel/UCJS9pqu9BzkAMNTmzNMNhvg), is excellent. They run a bit over 50 minutes in total, but have
 a very high signal to noise ratio. A good investment.
 
-### Infrastructure as code
+### B.4 Infrastructure as code
+
 [Infrastructure as Code (IaC)](https://docs.microsoft.com/en-us/devops/deliver/what-is-infrastructure-as-code) is the notion of defining infrastructure in a file - typically uderstood to be as a data specification with a bit of embedded logic. Depending on the framework/tooling used, the balance between pure-data and all-code varies. The important part in any case is that the infrastructure is contained in a file and committed to version control.
 
-### Git-ops/Infrastructure Lifecycle
+#### B.4.1 Git-ops/Infrastructure Lifecycle
+
 This section got too large and complex to fit inline and not be a distraction. Read all about it [here](./infra-lifecycle/infra-lifecycle.md).
 
+We are interested in an architecture that deploys an traditional 3-tiered app (ui, api, db) over
+a Kubernetes cluster which itself is deployed over provisioned public cloud infrastructure.
+
+The goal is to build Infrastructure as Code (IaC), which allows us to treat as much of the
+infrastructure as cattle as possible. As we'll see, this is currently not a 100% certainty,
+but can be assured for some use-cases within the normal flow. We want this ability to make
+changes and possibly recreate the infrastructure at will
+
+#### B.4.2 GitOps or not to GitOps? That is the question.
+
+We are not yet at the stage of maturity that we can use git-ops in our setup, however,
+we cannot escape the general structure of what git-ops mandates. We are just side-stepping
+a multitude of additional tools for now. We are re-inventing the wheel here to keep it simple.
+
+The good news is that eventually this will enable an easier path towards a git-ops flow.
+
+We can think of our infrastructure in four layers:
+
+1. Deployed Application - the top layer - the reason we embark on this journey.
+2. Configured Infrastructure - the kubernetes layer
+3. Provisioned Infrastructure - the services/infrastructure provisioned on the public cloud
+4. Bootstrapping script - the script that gets it all going.
+
+Each layer has it's a notion of a life-cycle - especially the operations - Create - Update/Recreate - Delete
+
+Each layers life-cycle operation at a layer typically impacts all layers above it - this is especially true if a delete operation is invoked. However the binding between the layers is
+not formalized or explicit in current IaC structures.
+
+This requires our orchestration scripts to maintain this notion of what is possible and
+what not. This is done by scripting specific use cases.
+
+Once the infrastructure is created, for the common case of changes to the app-code, we
+have the ability to (re)deploy at will. But that is only because we do not make changes to layers 2-4 in the hierarchy described above. If something should change there, it's most likely a destructive recreation of the system.
+
+The rest of this document tries to build the Create & Delete operations for each layer, so
+we can provide these in a scripted fashion. While not complete control, it does allow us
+to treat our infrastructure as "cattle-not-pets".
+
+The sequence diagram below pulls together the various actors into a single inter-dependent flow
+and layers on the various operations.
+![Infrastructure Lifecycle](./docs/infra-lifecycle/infra-lifecycle.png)
+
+Note that while we indicate the notion of updates to the kubernetes cluster and the underlying infrastructure, this is currently not addressed as part of this exercise.
 
 ## Infrastructure Design
-We now have an application to deploy, and a basic requirement that we are going to deploy 
+
+We now have an application to deploy, and a basic requirement that we are going to deploy
 the application over a kubernetes cluster on the Azure cloud. We also have a basic understanding of a concepts and pieces involved.
 
-So with that, let's get started. 
+So with that, let's get started.
 
 We will be adapting the [AKS workshop architecture](https://docs.microsoft.com/en-us/learn/modules/aks-workshop/01-introduction) to fit our needs. Specifically, there are two changes we anticipate
+
 1. replacing `mongo-db` within the kubernetes cluster with an _Azure Managed Postgres_ instance
 2. [TBD] adding an _Azure Key Vault_ to manage secrets (db credentials mainly)
 
 Instead of building things up one step at a time, we will assume that the architecture works
-and build for the final goal. Meaning, our script will not piece-meal the building to aide understanding. Please read/implement the workshop tutorial to gain that understanding. 
+and build for the final goal. Meaning, our script will not piece-meal the building to aide understanding. Please read/implement the workshop tutorial to gain that understanding.
 
 ![Reference architecture](./docs/images/02_aks_workshop.svg)
 
-### Infrastructure/Configuration inventory
+At some point in the future, we hope to incorporate as much of the security and governance capabilities as appropriate. The [Security and Governance workshop](https://github.com/Azure/sg-aks-workshop) will serve as a starting point for that exercise. The link is only provided here for (future) reference.
+
+### 1. Infrastructure/Configuration inventory
 
 These are the pieces that we'll need to provision/configure as part of our script.
 They are also split up by stage of creation, allowing us automate with clear separation
 of responsibility.
 
-| Layer        |    Azure               | Kubernetes                 |
-|--------------|------------------------|----------------------------|
-| bootstrap    | service-principal      |                            |
-|              | resource-group         |                            |
-| infra        | azure-networking       |                            |
-|              | AKS-cluster            |                            |
-|              | ACR                    |                            |
-|              | bind AKS-ACR           |                            |
-|              | Azure-postgres         |                            |
-|              | log-analytics workspace|                            |
-|              | AKS monitoring addon   |                            |
-| config       |                        | namespace                  |
-|              |                        | api-Deployment             |
-|              |                        | api-Service                |
-|              |                        | LoadBalancer               |
-|              |                        | ui-Deployment              |
-|              |                        | ui-Service                 |
-|              |                        | ingress                    |
-|              |                        | cert-manager               |
-|              |                        | ClusterRole(monitoring)    |
-|              |                        | api-HorizontalPodAutoscaler|
+| Layer     | Azure                   | Kubernetes                  |
+| --------- | ----------------------- | --------------------------- |
+| bootstrap | resource-group          |                             |
+|           | service-principal       |                             |
+| infra     | azure-networking        |                             |
+|           | AKS-cluster             |                             |
+|           | ACR                     |                             |
+|           | bind AKS-ACR            |                             |
+|           | Azure-postgres          |                             |
+|           | log-analytics workspace |                             |
+|           | AKS monitoring addon    |                             |
+| config    |                         | namespace                   |
+|           |                         | api-Deployment              |
+|           |                         | api-Service                 |
+|           |                         | LoadBalancer                |
+|           |                         | ui-Deployment               |
+|           |                         | ui-Service                  |
+|           |                         | ingress                     |
+|           |                         | cert-manager                |
+|           |                         | ClusterRole(monitoring)     |
+|           |                         | api-HorizontalPodAutoscaler |
 
+## 2. Run Script
 
-## Globals
-As with any automation, the point is to have an ability to modify this with slight changes to fit other needs. This could be deploying the same application to different stages (dev/test/staging/production), to different regions or even deploying different applications using the same template.
+As with any automation, the point here is to have an ability to apply the general template being developed here to fit other needs.
+
+Other needs could include deploying
+
+- the same application to different environments (dev/test/production etc)
+- the same application to different regions
+- and even different applications using the same template
 
 > Further, we will use [`doable`](https://github.com/acuity-sr/doable) to extract these into self contained scripts, making this an executable document!
 
-To aide understanding and maintainability, the global variables are also split up by the stage when they are first used.
+We will be developing a create script that does each step in sequence, defining any needed environment variables as we go along.
 
 ##### windows
-```bat scripts/globals
+
+```bat win/run.bat
 rem bootstrap
+set GH_ORG=acuity-sr
 set APP_NAME=acuity-bkstg
 set REGION_NAME=eastus
 set RESOURCE_GROUP=%APP_NAME%
+call bootstrap.bat
+
+rem build
+rem we use a build_app.bat in-lieu of a CI process when working locally
+set GIT_REPO=https://github.com/$GH_ORG/$APP_NAME
+set API_DIR=packages/backend
+set UI_DIR=packages/frontend
+call build_app.bat
 
 rem infra
 set SUBNET_NAME=%APP_NAME%-aks-subnet
 set VNET_NAME=%APP_NAME%-aks-vnet
+call create_infra.bat
+
 
 rem config
 
+call create_kubernetes.bat
 
 rem app
 
+call deploy_app.bat
+
 ```
 
-##### *nix
-```sh scripts/globals
+##### \*nix
+
+```sh nix/run.sh
 # bootstrap
+GH_ORG=acuity-sr
 APP_NAME=acuity-bkstg
 REGION_NAME=eastus
 RESOURCE_GROUP=$APP_NAME
+. ./bootstrap.sh
+
+# build
+# we use a build_app.sh in-lieu of a CI process when working locally
+GIT_REPO=https://github.com/$GH_ORG/$APP_NAME
+API_DIR=packages/backend
+UI_DIR=packages/frontend
+. ./build_app.sh
 
 # infra
 SUBNET_NAME=$APP_NAME-aks-subnet
 VNET_NAME=$APP_NAME-aks-vnet
+. ./create_infra.sh
 
 # config
+. ./create_kubernetes.sh
 
 # app
+. ./deploy_app.bat
+
 ```
 
-## Bootstrap
+## 3. Bootstrap
+
+### 3.1 Subscription ID
+
+As we explored in the section on Azure Management Hierarchies, each Azure deployment is contained within a "subscription". Subscriptions are a logical partition, allowing billing and management control. Creating a subscription is beyond the scope of this document, however, by having a personal login to the Azure cloud, you are working within the purview of a "subscription". At a minimum, it has a clearly defined party to be billed for resources consumed. This could be an employer or your personal credit card used to setup the Azure account.
+
+While we do not create it, we do need the subscription id to create a Resource Group, which
+will in turn contain all the resources we consume.
+
+The subscription ID can vary by login. While it's possible (even preferable) to hard code this value for a team, when running this script on your local machine, this will likely vary.
+
+The bootstrap script automates it's extraction - after you have logged via the azure CLI.
 
 ##### windows
-```bat scripts/bootstrap
+
+```bat win/bootstrap.bat
+
+rem Subscription ID:
+rem (we are picking the 0 item in the array, change as needed)
+rem az account show --query id --output tsv
+FOR /F "tokens=* USEBACKQ" %%g IN (`az account show --query id --output tsv`) do (SET SUBSCRIPTION_ID=%%g)
+echo SUBSCRIPTION_ID=%SUBSCRIPTION_ID%
+
 ```
 
-##### *nix
-```sh scripts/bootstrap
+##### \*nix
+
+```sh nix/bootstrap.sh
+
+# Subscription ID:
+# (we are picking the 0 item in the array, change as needed)
+# az account show --query id --output tsv
+SUBSCRIPTION_ID=`az account show --query id --output tsv`
+echo $SUBSCRIPTION_ID
+
 ```
 
-## Infrastructure
+### 3.2 Service Principal
+
+A [service principal](https://docs.microsoft.com/en-us/cli/azure/create-an-azure-service-principal-azure-cli?toc=%2Fazure%2Fazure-resource-manager%2Ftoc.json&view=azure-cli-latest) provides authentication for automation/non-human entities. We can assign a "role" with specific access privileges or "Role based access control (RBAC)".
 
 ##### windows
-```bat scripts/infra
-```
 
-##### *nix
-```sh scripts/infra
-```
-
-## config
-
-### Api 
-#### Deployment
-```yaml scripts/api-deployment.yml
-```
-#### Service
-```yaml scripts/api-service.yml
-```
-
-### UI
-#### Deployment
-```yaml scripts/ui-deployment.yml
-```
-#### Service
-```yaml scripts/ui-service.yml
-```
+```bat win/bootstrap.bat
 
 
+```
+
+##### \*nix
+
+```sh nix/bootstrap.sh
+
+```
+
+## 5. Build
+
+##### windows
+
+```bat win/app_build.bat
+
+```
+
+##### \*nix
+
+```sh nix/app_build.sh
+
+```
+
+## 6. Infrastructure
+
+### 6.1 Create
+
+##### windows
+
+```bat win/create_infra.bat
+
+```
+
+##### \*nix
+
+```sh nix/create_infra.sh
+
+```
+
+## 7. Config
+
+### 7.1 Create
+
+##### windows
+
+```bat win/create_kubernetes.bat
+
+```
+
+##### \*nix
+
+```sh nix/create_kubernetes.sh
+
+```
+
+### 7.2 Api
+
+#### 7.2.1 Deployment
+
+```yaml api-deployment.yml
+
+```
+
+#### 7.2.2 Service
+
+```yaml api-service.yml
+
+```
+
+### 7.3 UI
+
+#### 7.3.1 Deployment
+
+```yaml ui-deployment.yml
+
+```
+
+#### 7.3.2 Service
+
+```yaml ui-service.yml
+
+```
+
+## 8. Deploy
+
+##### windows
+
+```bat win/app_deploy.bat
+
+```
+
+##### \*nix
+
+```sh nix/app_deploy.sh
+
+```
