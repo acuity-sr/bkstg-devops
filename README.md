@@ -191,66 +191,113 @@ Other needs could include deploying
 
 We will be developing a create script that does each step in sequence, defining any needed environment variables as we go along.
 
-- `windows` (creates nix/run.bat)
+### Globals
+
+The absolute minimal set of values to be configured by the user before we can generate the rest of the scripts are stored in a
+`globals.{bat|sh}` file.
+
+- `windows` (create globals.bat)
+
+```bat globals.bat
+rem globals
+set GH_ORG=acuity-sr
+set GH_REPO=acuity-bkstg
+set REGION_NAME=eastus
+set STAGE=dev
+
+rem customize if you want the app-name to be different
+set APP_NAME=%GH_REPO%-%STAGE%-%REGION%
+
+pushd %~dp0
+set SCRIPT_ROOT=%CD%
+popd
+SRC_DIR=%SCRIPT_DIR%/..
+```
+
+- `*nix` (create globals.sh)
+
+```sh globals.sh
+# globals
+GH_ORG=acuity-sr
+GH_REPO=acuity-bkstg
+REGION_NAME=eastus
+STAGE=dev
+
+# possibly customize
+APP_NAME=$GH_REPO-$STAGE-$REGION
+
+SCRIPT_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+SRC_DIR=$SCRIPT_ROOT/..
+```
+
+- `windows` (creates win/run.bat)
 
 ```bat win/run.bat
+
+rem initialize script dir (via https://stackoverflow.com/a/36351656)
+pushd %~dp0
+set SCRIPT_DIR=%CD%
+popd
+
 rem bootstrap
 set GH_ORG=acuity-sr
 set APP_NAME=acuity-bkstg
+set SRC_DIR=../acuity-bkstg
 set REGION_NAME=eastus
-set RESOURCE_GROUP=%APP_NAME%
-call bootstrap.bat
+set RESOURCE_GROUP=%APP_NAME%-rg
+call %SCRIPT_DIR%\bootstrap.bat
 
 rem build
 rem we use a build_app.bat in-lieu of a CI process when working locally
 set GIT_REPO=https://github.com/$GH_ORG/$APP_NAME
 set API_DIR=packages/backend
 set UI_DIR=packages/frontend
-call build_app.bat
+call %SCRIPT_DIR%\build_app.bat
 
 rem infra
-set SUBNET_NAME=%APP_NAME%-aks-subnet
-set VNET_NAME=%APP_NAME%-aks-vnet
-call create_infra.bat
+call %SCRIPT_DIR%\create_infra.bat
 
 
 rem config
 
-call create_kubernetes.bat
+call %SCRIPT_DIR%\create_kubernetes.bat
 
 rem app
 
-call deploy_app.bat
+call %SCRIPT_DIR%\deploy_app.bat
 
 ```
 
 - `*nix` (creates nix/run.sh)
 
 ```sh nix/run.sh
+
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
 # bootstrap
 GH_ORG=acuity-sr
 APP_NAME=acuity-bkstg
 REGION_NAME=eastus
-RESOURCE_GROUP=$APP_NAME
-. ./bootstrap.sh
+RESOURCE_GROUP=$APP_NAME-rg
+. $SCRIPT_DIR/bootstrap.sh
 
-# build
-# we use a build_app.sh in-lieu of a CI process when working locally
-GIT_REPO=https://github.com/$GH_ORG/$APP_NAME
-API_DIR=packages/backend
-UI_DIR=packages/frontend
-. ./build_app.sh
+# # build
+# # we use a build_app.sh in-lieu of a CI process when working locally
+# GIT_REPO=https://github.com/$GH_ORG/$APP_NAME
+# API_DIR=packages/backend
+# UI_DIR=packages/frontend
+# . $SCRIPT_DIR/build_app.sh
 
 # infra
 SUBNET_NAME=$APP_NAME-aks-subnet
 VNET_NAME=$APP_NAME-aks-vnet
-. ./create_infra.sh
+. $SCRIPT_DIR/create_infra.sh
 
-# config
-. ./create_kubernetes.sh
+# # config
+# . $SCRIPT_DIR/create_kubernetes.sh
 
-# app
-. ./deploy_app.bat
+# # app
+# . $SCRIPT_DIR/deploy_app.bat
 
 ```
 
@@ -271,13 +318,24 @@ The bootstrap script automates it's extraction - after you have logged via the a
 
 ```bat win/bootstrap.bat
 
-rem Opens a webpage to login to Azure and provides credentials to the azure-cli
-az login
+echo "\n\n****************"
+echo "1. Bootstrapping"
+echo "****************\n\n"
 
-rem Subscription ID:
-rem (we are picking the 0 item in the array, change as needed)
-rem az account show --query id --output tsv
-FOR /F "tokens=* USEBACKQ" %%g IN (`az account show --query id --output tsv`) do (SET SUBSCRIPTION_ID=%%g)
+rem specify SUBSCRIPTION_ID here if you'd like to pin it to a specific one.
+rem by default, will ask you to login and use the SUBSCRIPTION_ID tied to your account
+set SUBSCRIPTION_ID=
+
+if (%SUBSCRIPTION_ID% == '') (
+  echo "Extracting Azure 'Subscription ID' from current login"
+  rem Opens a webpage to login to Azure and provides credentials to the azure-cli
+  az login
+
+  rem Picks the subscription tied to the login above
+  rem az account show --query id --output tsv
+  FOR /F "tokens=* USEBACKQ" %%g IN (`az account show --query id --output tsv`) do (SET SUBSCRIPTION_ID=%%g)
+
+)
 echo SUBSCRIPTION_ID=%SUBSCRIPTION_ID%
 
 ```
@@ -286,21 +344,45 @@ echo SUBSCRIPTION_ID=%SUBSCRIPTION_ID%
 
 ```sh nix/bootstrap.sh
 
-# Opens a webpage to login to Azure and provides credentials to the azure-cli
-az login
+echo "\n\n****************"
+echo "1. Bootstrapping"
+echo "****************\n\n"
 
-# Subscription ID:
-# (we are picking the 0 item in the array, change as needed)
-# az account show --query id --output tsv
-SUBSCRIPTION_ID=`az account show --query id --output tsv`
-echo $SUBSCRIPTION_ID
+# specify SUBSCRIPTION_ID here if you'd like to pin it to a specific one.
+# by default, will ask you to login and use the SUBSCRIPTION_ID tied to your account
+SUBSCRIPTION_ID=
+if [[ SUBSCRIPTION_ID == '' ]]
+then
+  echo "Extracting Azure 'Subscription ID' from current login"
 
+  # Opens a webpage to login to Azure and provides credentials to the azure-cli
+  az login
+
+  # Picks the subscription tied to the login above
+  # az account show --query id --output tsv
+  SUBSCRIPTION_ID=`az account show --query id --output tsv`
+fi
+echo "SUBSCRIPTION_ID=$SUBSCRIPTION_ID"
 ```
 
 ### 3.2 Resource Group
+
 - `windows` (appends to win/bootstrap.bat)
 
 ```bat win/bootstrap.bat
+
+echo "Create resource group if it doesn't exist"
+FOR /F "tokens=* USEBACKQ" %%g IN (`az group exists -n %RESOURCE_GROUP%`) do (SET rgExists=%%g)
+
+if (%rgExists%=='false') (
+  echo "Creating resource-group '%RESOURCE_GROUP%'"
+  az group create \
+    --name %RESOURCE_GROUP% \
+    --location %REGION_NAME%
+) else (
+  echo "Reusing existing resource group '$RESOURCE_GROUP'"
+)
+FOR /F "tokens=* USEBACKQ" %%g IN (`az group show --query 'id' -n %RESOURCE_GROUP%`) do (SET RESOURCE_GROUP_ID=%%g)
 
 ```
 
@@ -308,8 +390,69 @@ echo $SUBSCRIPTION_ID
 
 ```sh nix/bootstrap.sh
 
+echo "Create resource group if it doesn't exist"
+rgExists=`az group exists -n $RESOURCE_GROUP`
+if [ $? -eq 0 ];
+then
+  echo "Reusing existing resource group '$RESOURCE_GROUP'"
+else
+  echo "Creating resource-group '$RESOURCE_GROUP'"
+  az group create \
+    --name $RESOURCE_GROUP \
+    --location $REGION_NAME
+fi
+
+RESOURCE_GROUP_ID=$(az group show --query 'id' -n $RESOURCE_GROUP)
+
 ```
 
+### 3.3 Azure Active Directory Application
+
+We need a service principal to generate credentials for automation to access necessary resources.
+However, before you create a service principal, you need to create an “application” in Azure Active Directory. You can think of this as an identity for the application that needs access to your Azure resources.
+
+- `windows` (appends to win/bootstrap.bat)
+
+```bat win/bootstrap.bat
+
+echo "Create Active Directory App if not already existing"
+
+rem fetch previously created app
+FOR /F "tokens=* USEBACKQ" %%g IN (`az ad app list --query [].appId -o tsv --display-name %APP_NAME%`) do (SET APP_ID=%%g)
+
+if (%APP_ID%=="") (
+  rem APP_ID not found, create new Active directory app
+  az ad app create --display-name %APP_NAME%
+  echo "created new App '%APP_NAME%'"
+)
+
+rem extract APP_ID (needed to create the service principal)
+FOR /F "tokens=* USEBACKQ" %%g IN (`az ad app list --query [].appId -o tsv --display-name %APP_NAME%`) do (SET APP_ID=%%g)
+
+echo "APP_ID=%APP_ID%"
+```
+
+- `*nix` (appends to nix/bootstrap.sh)
+
+```sh nix/bootstrap.sh
+
+echo "Create Active Directory App if not already existing"
+
+# fetch previously created app
+APP_ID=$(az ad app list --query [].appId -o tsv --display-name $APP_NAME)
+
+if [ $? -ne 0 ];
+then
+  # APP_ID not found, create new Active directory app
+  az ad app create --display-name $APP_NAME
+  echo "created new App '$APP_NAME'"
+fi
+
+# extract APP_ID (needed to create the service principal)
+APP_ID=`az ad app list --query [].appId -o tsv --display-name $APP_NAME`
+echo "APP_ID=$APP_ID"
+
+```
 
 ### 3.3 Service Principal
 
@@ -325,16 +468,30 @@ Creation of the service principal returns the authenticatin credentials. We will
 
 ```bat win/bootstrap.bat
 
+rem initialize script dir (via https://stackoverflow.com/a/36351656)
+pushd %~dp0
+set SCRIPT_DIR=%CD%
+popd
+
+
+set SERVICE_PRINCIPAL=%APP_NAME%-sp
+set SP_FNAME=./%APP_NAME%-sp-creds.dat
 rem create service principal
-SERVICE_PRINCIPAL=%APP_NAME%-sp
-
-az ad sp create-for-rbac \
- --name "%SERVICE_PRINCIPAL%" \
- --sdk-auth \
- --role contributor \
- --scopes /subscriptions/%SUBSCRIPTION_ID%/resourceGroups/%RESOURCE_GROUP%/providers/Microsoft.Web/sites/%APP_NAME% \
-  > SP_CREDENTIALS.dat
-
+if exist %SP_FNAME% (
+  echo "Reusing existing service principal %APP_NAME%-sp"
+  node %SCRIPT_DIR%/../bin/decrypt.js %SP_FNAME%
+  FOR /F "tokens=* USEBACKQ" %%g IN (`type %SP_FNAME%.decrypted`) do (SET SP_CREDENTIALS=%%g)
+  rm %SP_FNAME%.decrypted
+) else (
+  FOR /F "tokens=* USEBACKQ" %%g IN (`\
+    az ad sp create-for-rbac \
+      --sdk-auth \
+      --skip-assignment \
+      --name %SERVICE_PRINCIPAL%`) do (SET SP_CREDENTIALS=%%g)
+  echo %SP_CREDENTIALS% > %SP_FNAME%
+  node %SCRIPT_DIR%/../bin/encrypt.js %SP_FNAME%
+)
+FOR /F "tokens=* USEBACKQ" %%g IN (`az ad sp list --query '[].objectId' -o tsv --display-name %SERVICE_PRINCIPAL%`) do (SET SERVICE_PRINCIPAL_ID=%%g)
 
 ```
 
@@ -342,18 +499,28 @@ az ad sp create-for-rbac \
 
 ```sh nix/bootstrap.sh
 
-set SERVICE_PRINCIPAL=$APP_NAME-sp
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
-az ad sp create-for-rbac \
-  --name "$SERVICE_PRINCIPAL" \
-  --sdk-auth \
-  --role contributor \
-  --scopes /subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Web/sites/$APP_NAME \
-  > SP_CREDENTIALS.dat
+SERVICE_PRINCIPAL="$APP_NAME-sp"
+SP_FNAME="./$APP_NAME-sp-creds.dat"
+if test -f $SP_FNAME
+then
+  node $SCRIPT_DIR/../bin/decrypt.js $SP_FNAME
+  SP_CREDENTIALS=`cat $SP_FNAME.decrypted`
+  rm $SP_FNAME.decrypted
+else
+  SP_CREDENTIALS=`
+  az ad sp create-for-rbac \
+    --sdk-auth \
+    --skip-assignment\
+    --name $SERVICE_PRINCIPAL`
+  echo $SP_CREDENTIALS > $SP_FNAME
+  node $SCRIPT_DIR/../bin/encrypt.js $SP_FNAME
+fi
+
+SERVICE_PRINCIPAL_ID=$(az ad sp list --query '[].objectId' -o tsv --display-name $SERVICE_PRINCIPAL)
 
 ```
-
-
 
 ## 4. Build
 
@@ -369,9 +536,161 @@ az ad sp create-for-rbac \
 
 ```
 
-## 5. Infrastructure
+## 5. Provisioning Infrastructure
 
-### 5.1 Create
+### 5.1 Provision Networking
+
+Provision a virtual network, using Azure Container Networking Interface (CNI).
+
+- `windows` (creates win/create_infra.bat)
+
+```bat win/create_infra.bat
+
+echo "\n\n******************************"
+echo "2. Provisioning infrastructure"
+echo "******************************\n\n"
+
+set SUBNET_NAME=%APP_NAME%-aks-subnet
+set VNET_NAME=%APP_NAME%-aks-vnet
+
+rem check to see if previously created
+FOR /F "tokens=* USEBACKQ" %%g IN (`az network vnet subnet show \
+    --resource-group %RESOURCE_GROUP% \
+    --vnet-name %VNET_NAME% \
+    --name %SUBNET_NAME% \
+    --query id -o tsv`) do (SET SUBNET_ID=%%g)
+
+if ( SUBNET_ID == '') (
+  echo "Creating virtual network '%VNET_NAME%' and subnet '%SUBNET_NAME%'"
+  az network vnet create \
+    --resource-group %RESOURCE_GROUP% \
+    --location %REGION_NAME% \
+    --name %VNET_NAME% \
+    --address-prefixes 10.0.0.0/8 \
+    --subnet-name %SUBNET_NAME% \
+    --subnet-prefixes 10.240.0.0/16
+) else (
+  echo "Reusing virtual network '%VNET_NAME%' and subnet '%SUBNET_NAME%'"
+)
+
+FOR /F "tokens=* USEBACKQ" %%g IN (`az network vnet subnet show \
+    --resource-group %RESOURCE_GROUP% \
+    --vnet-name %VNET_NAME% \
+    --name %SUBNET_NAME% \
+    --query id -o tsv`) do (SET SUBNET_ID=%%g)
+```
+
+- `*nix` (creates nix/create_infra.sh)
+
+```sh nix/create_infra.sh
+
+echo "\n\n******************************"
+echo "2. Provisioning infrastructure"
+echo "******************************\n\n"
+
+SUBNET_NAME=$APP_NAME-aks-subnet
+VNET_NAME=$APP_NAME-aks-vnet
+
+# check to see if previously created
+SUBNET_ID=$(az network vnet subnet show \
+    --resource-group $RESOURCE_GROUP \
+    --vnet-name $VNET_NAME \
+    --name $SUBNET_NAME \
+    --query id -o tsv)
+
+if [ $? -eq 0 ];
+then
+  echo "Reusing virtual network '$VNET_NAME' and subnet '$SUBNET_NAME'"
+else
+  echo "Creating virtual network '$VNET_NAME' and subnet '$SUBNET_NAME'"
+  TMP=$(az network vnet create \
+    --resource-group $RESOURCE_GROUP \
+    --location $REGION_NAME \
+    --name $VNET_NAME \
+    --address-prefixes 10.0.0.0/8 \
+    --subnet-name $SUBNET_NAME \
+    --subnet-prefixes 10.240.0.0/16)
+fi
+
+SUBNET_ID=$(az network vnet subnet show \
+    --resource-group $RESOURCE_GROUP \
+    --vnet-name $VNET_NAME \
+    --name $SUBNET_NAME \
+    --query id -o tsv)
+
+echo SUBNET_ID=$SUBNET_ID
+
+```
+
+### 5.2 Provision AKS
+
+- `windows` (creates win/create_infra.bat)
+
+```bat win/create_infra.bat
+
+FOR /F "tokens=* USEBACKQ" %%g IN (`az aks get-versions \
+    --location %REGION_NAME% \
+    --query 'orchestrators[?!isPreview] | [-1].orchestratorVersion' \
+    --output tsv`) do (SET VERSION=%%g)
+
+set AKS_CLUSTER_NAME=%APP_NAME%-%STAGE%-aks
+
+FOR /F "tokens=* USEBACKQ" %%g IN (`az aks create \
+  --resource-group %RESOURCE_GROUP% \
+  --name %AKS_CLUSTER_NAME% \
+  --vm-set-type VirtualMachineScaleSets \
+  --node-count 2 \
+  --load-balancer-sku standard \
+  --location %REGION_NAME% \
+  --kubernetes-version %VERSION% \
+  --network-plugin azure \
+  --vnet-subnet-id %SUBNET_ID% \
+  --service-cidr 10.2.0.0/24 \
+  --dns-service-ip 10.2.0.10 \
+  --docker-bridge-address 172.17.0.1/16 \
+  --generate-ssh-keys`) do (SET AKS_CLUSTER=%%g)
+
+```
+
+- `*nix` (creates nix/create_infra.sh)
+
+```sh nix/create_infra.sh
+
+VERSION=$(az aks get-versions \
+    --location $REGION_NAME \
+    --query 'orchestrators[?!isPreview] | [-1].orchestratorVersion' \
+    --output tsv)
+
+AKS_CLUSTER_NAME=$APP_NAME-$STAGE-aks
+
+AKS_CLUSTER =$(az aks create \
+  --resource-group $RESOURCE_GROUP \
+  --name $AKS_CLUSTER_NAME \
+  --vm-set-type VirtualMachineScaleSets \
+  --node-count 2 \
+  --load-balancer-sku standard \
+  --location $REGION_NAME \
+  --kubernetes-version $VERSION \
+  --network-plugin azure \
+  --vnet-subnet-id $SUBNET_ID \
+  --service-cidr 10.2.0.0/24 \
+  --dns-service-ip 10.2.0.10 \
+  --docker-bridge-address 172.17.0.1/16 \
+  --generate-ssh-keys)
+
+```
+
+- `windows` (creates win/create_infra.bat)
+
+```bat win/create_infra.bat
+
+```
+
+- `*nix` (creates nix/create_infra.sh)
+
+```sh nix/create_infra.sh
+
+```
 
 - `windows` (creates win/create_infra.bat)
 
@@ -451,9 +770,49 @@ az ad sp create-for-rbac \
 
 ```
 
+## 8 Destroy
+
+This is a brute force mechanism of destroying the resource-group and all associated resources.
+For the moment, it's meant to reduce biulling to $0 and meant for use in development.
+
+> WARNING: Significant caution in using this for any live system advised. This can cause serious disruption to any live service - recovery might not be possible, data-loss is very very likely.
+
+- `windows` (creates win/destroy.bat)
+
+```bat win/destroy.bat
+
+rem initialize script dir (via https://stackoverflow.com/a/36351656)
+pushd %~dp0
+set SCRIPT_DIR=%CD%
+popd
+
+rem bootstrap
+set APP_NAME=acuity-bkstg
+set REGION_NAME=eastus
+set RESOURCE_GROUP=%APP_NAME%-rg
+call %SCRIPT_DIR%\bootstrap.bat
+
+az group delete --resource-group %RESOURCE_GROUP% --no-wait
+
+```
+
+- `*nix` (creates nix/destroy.sh)
+
+```sh nix/destroy.sh
+
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+. $SCRIPT_DIR/bootstrap.sh
+
+az group delete --resource-group %RESOURCE_GROUP% --no-wait
+az ad app delete --id $APP_ID
+az ad sp delete
+```
+
 ## TODO
 
 These are a list of enhancements to be worked upon in next iterations
-[ ] Managed Identities
-[ ] Azure Key Vault to store secrets
-[ ] terraform for infrastructure specification and deployment
+
+- [ ] Constrain `Service Principal` access
+- [ ] Use `Managed Identities`?
+- [ ] `Azure Key Vault` to store secrets
+- [ ] `terraform`` for infrastructure specification and deployment

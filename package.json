@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Dev-ops flow for Acuity backstage",
   "scripts": {
-    "gen": "doable README.md scripts",
+    "gen": "rimraf scripts && doable README.md scripts && doable docs/pre-reqs.md scripts && node bin/adjust-scripts.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -16,6 +16,11 @@
   "author": "Shishir Ramam",
   "license": "ISC",
   "dependencies": {
-    "doable": "github:acuity-sr/doable"
+    "doable": "github:acuity-sr/doable",
+    "doctoc": "^2.0.1",
+    "read": "^1.0.7"
+  },
+  "devDependencies": {
+    "rimraf": "^3.0.2"
   }
 }
