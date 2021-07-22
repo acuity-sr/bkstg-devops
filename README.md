@@ -1,3 +1,44 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [Azure Kubernetes DevOps](#azure-kubernetes-devops)
+  - [0.1 Pre-requisites](#01-pre-requisites)
+  - [0.2 Create the backstage-app](#02-create-the-backstage-app)
+  - [Background](#background)
+    - [B.1 Cattle Not Pets](#b1-cattle-not-pets)
+    - [B.2 Azure Management Scope](#b2-azure-management-scope)
+    - [B.3 Kubernetes](#b3-kubernetes)
+    - [B.4 Infrastructure as code](#b4-infrastructure-as-code)
+      - [B.4.1 Git-ops/Infrastructure Lifecycle](#b41-git-opsinfrastructure-lifecycle)
+      - [B.4.2 GitOps or not to GitOps? That is the question.](#b42-gitops-or-not-to-gitops-that-is-the-question)
+  - [Infrastructure Design](#infrastructure-design)
+    - [1. Infrastructure/Configuration inventory](#1-infrastructureconfiguration-inventory)
+  - [2. Run Script](#2-run-script)
+    - [Globals](#globals)
+  - [3. Bootstrap](#3-bootstrap)
+    - [3.1 Subscription ID](#31-subscription-id)
+    - [3.2 Resource Group](#32-resource-group)
+    - [3.3 Azure Active Directory Application](#33-azure-active-directory-application)
+    - [3.3 Service Principal](#33-service-principal)
+  - [4. Build](#4-build)
+  - [5. Provisioning Infrastructure](#5-provisioning-infrastructure)
+    - [5.1 Provision Networking](#51-provision-networking)
+    - [5.2 Provision AKS](#52-provision-aks)
+  - [6. Config](#6-config)
+    - [6.1 Create](#61-create)
+    - [6.2 Api](#62-api)
+      - [6.2.1 Deployment](#621-deployment)
+      - [6.2.2 Service](#622-service)
+    - [6.3 UI](#63-ui)
+      - [6.3.1 Deployment](#631-deployment)
+      - [6.3.2 Service](#632-service)
+  - [7. Deploy](#7-deploy)
+  - [8 Destroy](#8-destroy)
+  - [TODO](#todo)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # Azure Kubernetes DevOps
 
 This module documents the various pieces needed to deploy a traditional web app using kubernetes on Azure.
