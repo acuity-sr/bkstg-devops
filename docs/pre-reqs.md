@@ -1,3 +1,21 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [Pre-requisites](#pre-requisites)
+  - [1. OS package manager:](#1-os-package-manager)
+  - [2. nodejs:](#2-nodejs)
+  - [(tl;dr - script to install the rest)](#tldr---script-to-install-the-rest)
+  - [3. Azure CLI](#3-azure-cli)
+  - [4. kubectl the Kubernetes-CLI](#4-kubectl-the-kubernetes-cli)
+  - [5. kubectx & kubens](#5-kubectx--kubens)
+  - [6. helm](#6-helm)
+  - [7. github-cli](#7-github-cli)
+  - [Checklist](#checklist)
+    - [`windows` (create win/pre-reqs.bat)](#windows-create-winpre-reqsbat)
+    - [`*nix` (creates nix/pre-reqs.sh)](#nix-creates-nixpre-reqssh)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # Pre-requisites
 
 For a dev-ops flow to work smoothly, these are the minimum set of
@@ -8,7 +26,7 @@ github actions. For github-actions, we'll provide a working script with any inst
 Your personal system however will need you to ensure that the list below is setup correctly.
 In general, we assume we are working on `windows` or `macos` systems, though we generalize `macos` to `*nix` where possible.
 
-### 1. OS package manager:
+## 1. OS package manager:
 
 - `*nix`: builtin
 - `macos`: [homebrew](https://brew.sh/) is a popular package manager and we'll be assuming this when necessary for the rest of the document.
@@ -17,7 +35,7 @@ In general, we assume we are working on `windows` or `macos` systems, though we 
   ```
 - `windows`: [chocolatey](https://docs.chocolatey.org/en-us/choco/setup#non-administrative-install) is among the most popular package managers for windows and we'll be assuming this when necessary for the rest of the documents. It's most convenient to setup the non-administrative install of chocolatey.
 
-### 2. nodejs:
+## 2. nodejs:
 
 If installing on your personal machine, it's best to install nodejs via the Node Version Manager, which allows multiple versions of node.js to coexist and switching between them as needed.
 
@@ -38,7 +56,7 @@ If installing on your personal machine, it's best to install nodejs via the Node
     npm i yarn -g
   ```
 
-## tl;dr
+## (tl;dr - script to install the rest)
 
 The remaining commands can be installed using the package managers we installed in step 1.
 We also list the commands locations for manual installation in case your system is not listed below.
@@ -66,28 +84,28 @@ brew install gh
 
 Please see instructions for your flavour of \*nix at the links below.
 
-### 3. Azure CLI
+## 3. Azure CLI
 
 [Installation instructions](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli)
 
-### 4. kubectl the Kubernetes-CLI
+## 4. kubectl the Kubernetes-CLI
 
 [Installation instructions](https://kubernetes.io/docs/tasks/tools/#kubectl)
 
 The Kubernetes command-line tool, [kubectl](https://kubernetes.io/docs/reference/kubectl/kubectl/), allows you to run commands against Kubernetes clusters. You can use kubectl to deploy applications, inspect and manage cluster resources, and view logs. For more information including a complete list of kubectl operations, see the [kubectl reference documentation](https://kubernetes.io/docs/reference/kubectl/).
 
-### 5. kubectx & kubens
+## 5. kubectx & kubens
 
 [Installation intructions](https://github.com/ahmetb/kubectx/#installation)
 Faster way to switch between clusters and namespaces in kubectl
 
-### 6. helm
+## 6. helm
 
 [Installation instructions](https://helm.sh/docs/intro/install/)
 
 Helm is the package manager for Kubernetes, and you can read detailed background information in the [CNCF Helm Project Journey report](https://www.cncf.io/reports/cncf-helm-project-journey-report/).
 
-### 7. github-cli
+## 7. github-cli
 
 [Installation instructions](https://github.com/cli/cli#installation)
 The github CLI - we use this to install github secrets when necessary
@@ -101,7 +119,7 @@ if not. This will make for a pleasant developer experience.
 The checklist only looks for utilities that are essential for our dev-ops workflow
 to function. Not all the pre-reqs listed above make the cut. Specifically, package managers (`choco`, `brew`), version managers (`nvm`) and optional utilities (`kubectx`).
 
-- `windows` (create win/pre-reqs.bat)
+### `windows` (create win/pre-reqs.bat)
 
 ```bat win/pre-reqs.bat
 rem check that pre-reqs are installed
@@ -200,7 +218,7 @@ if (%MISSING_REQS%=='true') (
 )
 ```
 
-- `*nix` (creates nix/pre-reqs.sh)
+### `*nix` (creates nix/pre-reqs.sh)
 
 ```sh nix/pre-reqs.sh
 # checks that pre-reqs are installed
