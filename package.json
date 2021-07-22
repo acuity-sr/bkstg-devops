@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Dev-ops flow for Acuity backstage",
   "scripts": {
-    "gen": "rimraf scripts && doable README.md scripts && doable docs/pre-reqs.md scripts && node bin/adjust-scripts.js",
+    "gen": "rimraf scripts && doable README.md scripts && doable docs/pre-reqs.md scripts && node bin/cp.js && node scripts/bin/chmod.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -17,8 +17,7 @@
   "license": "ISC",
   "dependencies": {
     "doable": "github:acuity-sr/doable",
-    "doctoc": "^2.0.1",
-    "read": "^1.0.7"
+    "doctoc": "^2.0.1"
   },
   "devDependencies": {
     "rimraf": "^3.0.2"
