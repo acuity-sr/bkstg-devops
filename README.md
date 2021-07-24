@@ -1,6 +1,5 @@
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
-**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
 - [Azure Kubernetes DevOps](#azure-kubernetes-devops)
   - [0.1 Pre-requisites](#01-pre-requisites)
@@ -12,29 +11,37 @@
     - [B.4 Infrastructure as code](#b4-infrastructure-as-code)
       - [B.4.1 Git-ops/Infrastructure Lifecycle](#b41-git-opsinfrastructure-lifecycle)
       - [B.4.2 GitOps or not to GitOps? That is the question.](#b42-gitops-or-not-to-gitops-that-is-the-question)
+    - [Infrastructure Lifecycle](#infrastructure-lifecycle)
   - [Infrastructure Design](#infrastructure-design)
-    - [1. Infrastructure/Configuration inventory](#1-infrastructureconfiguration-inventory)
-  - [2. Run Script](#2-run-script)
-    - [Globals](#globals)
-  - [3. Bootstrap](#3-bootstrap)
-    - [3.1 Subscription ID](#31-subscription-id)
-    - [3.2 Resource Group](#32-resource-group)
-    - [3.3 Azure Active Directory Application](#33-azure-active-directory-application)
-    - [3.3 Service Principal](#33-service-principal)
-  - [4. Build](#4-build)
-  - [5. Provisioning Infrastructure](#5-provisioning-infrastructure)
-    - [5.1 Provision Networking](#51-provision-networking)
-    - [5.2 Provision AKS](#52-provision-aks)
-  - [6. Config](#6-config)
-    - [6.1 Create](#61-create)
-    - [6.2 Api](#62-api)
-      - [6.2.1 Deployment](#621-deployment)
-      - [6.2.2 Service](#622-service)
-    - [6.3 UI](#63-ui)
-      - [6.3.1 Deployment](#631-deployment)
-      - [6.3.2 Service](#632-service)
-  - [7. Deploy](#7-deploy)
-  - [8 Destroy](#8-destroy)
+    - [Infrastructure/Configuration inventory](#infrastructureconfiguration-inventory)
+    - [Automation](#automation)
+  - [1. Lifecycle scripts](#1-lifecycle-scripts)
+    - [1.1 Creation](#11-creation)
+    - [1.2 Update Application](#12-update-application)
+    - [1.3 Destroy](#13-destroy)
+  - [2. Support Scripts](#2-support-scripts)
+    - [2.1 Globals](#21-globals)
+    - [2.2 Bootstrap](#22-bootstrap)
+      - [2.2.1 Subscription ID](#221-subscription-id)
+      - [2.2.2 Resource Group](#222-resource-group)
+      - [2.2.3 Azure Active Directory Application](#223-azure-active-directory-application)
+      - [2.2.4 Service Principal](#224-service-principal)
+    - [2.3 Build](#23-build)
+    - [2.4 Infrastructure](#24-infrastructure)
+      - [2.4.1 Networking](#241-networking)
+        - [Create](#create)
+        - [Delete](#delete)
+      - [2.4.2 Provision AKS](#242-provision-aks)
+    - [2.5. Configure Kubernetes](#25-configure-kubernetes)
+      - [2.5.1 Create](#251-create)
+      - [2.5.2 Api](#252-api)
+        - [2.5.2.1 Deployment](#2521-deployment)
+        - [2.5.2.2 Service](#2522-service)
+      - [2.5.3 UI](#253-ui)
+        - [2.5.3.1 Deployment](#2531-deployment)
+        - [2.5.3.2 Service](#2532-service)
+    - [2.6. Deploy](#26-deploy)
+    - [2.7 Destroy](#27-destroy)
   - [TODO](#todo)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -167,6 +174,9 @@ to treat our infrastructure as "cattle-not-pets".
 
 The sequence diagram below pulls together the various actors into a single inter-dependent flow
 and layers on the various operations.
+
+### Infrastructure Lifecycle
+
 ![Infrastructure Lifecycle](./docs/infra-lifecycle/infra-lifecycle.png)
 
 Note that while we indicate the notion of updates to the kubernetes cluster and the underlying infrastructure, this is currently not addressed as part of this exercise.
@@ -190,7 +200,7 @@ and build for the final goal. Meaning, our script will not piece-meal the buildi
 
 At some point in the future, we hope to incorporate as much of the security and governance capabilities as appropriate. The [Security and Governance workshop](https://github.com/Azure/sg-aks-workshop) will serve as a starting point for that exercise. The link is only provided here for (future) reference.
 
-### 1. Infrastructure/Configuration inventory
+### Infrastructure/Configuration inventory
 
 These are the pieces that we'll need to provision/configure as part of our script.
 They are also split up by stage of creation, allowing us automate with clear separation
@@ -218,7 +228,7 @@ of responsibility.
 |           |                         | ClusterRole(monitoring)     |
 |           |                         | api-HorizontalPodAutoscaler |
 
-## 2. Run Script
+### Automation
 
 As with any automation, the point here is to have an ability to apply the general template being developed here to fit other needs.
 
@@ -230,142 +240,298 @@ Other needs could include deploying
 
 > Further, we will use [`doable`](https://github.com/acuity-sr/doable) to extract these into self contained scripts, making this an executable document!
 
-We will be developing a create script that does each step in sequence, defining any needed environment variables as we go along.
+The [infrastructure lifecyle](#infrastructure-lifecycle) sequence diagram lists the various operations we anticipate needing as part of any reasonable service in the cloud.
 
-### Globals
+To wit, these are the use-cases that are planned on being supported (eventually):
 
-The absolute minimal set of values to be configured by the user before we can generate the rest of the scripts are stored in a
-`globals.{bat|sh}` file.
+1. **Creation**, developer initiated, provision some/all of the infra, kubernetes and app
+2. **Update (application)**, developer initiated, typically the raison d'etre for this tooling
+3. **Update (kubernetes)**, developer or ops driven action to better manage load or changing requirements
+4. **Update (infrastructure)**, ops driven to manage load, developer driven to adapt architecture
+5. **Delete (app)**, end-of-life or migration driven
+6. **Delete (kubernetes)**, typically triggered by migration/deletion of underling infrastructure
+7. **Delete (infrastructure)**, scaling or migration driven
+8. **Destroy**, panic mode teardown of everything - in production should only by triggered under attack - for security or cost reasons. When "stopping-the-pain-right-now" is more important than we need a guarantee that we and isolate the fault. Interestingly, this can also be used in dev (non-production), to tear down infrastructure to minimize idle-time-billing.
+
+> Caution: all delete/destroy operations in production (or with "real customers") will need to be protected from accidental execution. This is currently not addressed as part of this document or implementation. TBD
+
+For a phase 1 implementation, we will
+
+- not provide any protections/safeguards against foot-guns for #3,4,8. Operation caution advised to prevent catastrophic errors
+- skip items #4-7
+
+## 1. Lifecycle scripts
+
+We first develop the lifecycle scripts needed to manage the different use cases.
+
+To prevent catastrophic consequences, it's highly recommended that operators understand these scripts well
+and invoke them with proper human review.
+
+### 1.1 Creation
+
+Defines the workflow to implement the "Creation" use-case.
+The script creates/reuses any necessary resources.
+
+- `windows` (creates win/create.bat)
+
+```bat win/create.bat
+
+rem initialize script dir (via https://stackoverflow.com/a/36351656)
+pushd %~dp0
+set DEVOPS_SCRIPT_DIR=%CD%
+popd
+
+set USE_CASE=create
+echo "\n\n================="
+echo     " Create Workflow "
+echo     "=================\n\n"
+
+call %DEVOPS_SCRIPT_DIR%\..\globals.bat
+call %DEVOPS_SCRIPT_DIR%\support\bootstrap.bat
+call %DEVOPS_SCRIPT_DIR%\support\app_build.bat
+call %DEVOPS_SCRIPT_DIR%\support\create_infra.bat
+call %DEVOPS_SCRIPT_DIR%\support\create_kubernetes.bat
+call %DEVOPS_SCRIPT_DIR%\app_deploy.bat
+rem call %DEVOPS_SCRIPT_DIR%\support\destroy_all.bat
+
+```
+
+- `*nix` (creates nix/create.sh)
+
+```sh nix/create.sh
+
+DEVOPS_SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
+USE_CASE=create
+echo "\n\n================="
+echo     " Create Workflow "
+echo     "=================\n\n"
+
+. ${DEVOPS_SCRIPT_DIR}/../globals.sh
+. ${DEVOPS_SCRIPT_DIR}/support/bootstrap.sh
+# . ${DEVOPS_SCRIPT_DIR}/support/app_build.sh
+# . ${DEVOPS_SCRIPT_DIR}/support/create_infra.sh
+# . ${DEVOPS_SCRIPT_DIR}/support/create_kubernetes.sh
+# . ${DEVOPS_SCRIPT_DIR}/app_deploy.sh
+# . ${DEVOPS_SCRIPT_DIR}/support/destroy_all.sh
+
+```
+
+### 1.2 Update Application
+
+Updates the "application"
+
+- `windows` (creates win/update-app.bat)
+
+```bat win/update-app.bat
+
+rem initialize script dir (via https://stackoverflow.com/a/36351656)
+pushd %~dp0
+set DEVOPS_SCRIPT_DIR=%CD%
+popd
+
+set USE_CASE=update-app
+echo "\n\n================="
+echo     " Update Workflow "
+echo     "=================\n\n"
+
+call %DEVOPS_SCRIPT_DIR%\..\globals.bat
+call %DEVOPS_SCRIPT_DIR%\support\bootstrap.bat
+call %DEVOPS_SCRIPT_DIR%\support\app_build.bat
+rem call %DEVOPS_SCRIPT_DIR%\support\create_infra.bat
+rem call %DEVOPS_SCRIPT_DIR%\support\create_kubernetes.bat
+call %DEVOPS_SCRIPT_DIR%\app_deploy.bat
+rem call %DEVOPS_SCRIPT_DIR%\support\destroy_all.bat
+
+```
+
+- `*nix` (creates nix/update-app.sh)
+
+```sh nix/update-app.sh
+
+DEVOPS_SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
+set USE_CASE=update-app
+echo "\n\n================="
+echo     " Update Workflow "
+echo     "=================\n\n"
+
+. ${DEVOPS_SCRIPT_DIR}/../globals.sh
+. ${DEVOPS_SCRIPT_DIR}/support/bootstrap.sh
+. ${DEVOPS_SCRIPT_DIR}/support/app_build.sh
+# . ${DEVOPS_SCRIPT_DIR}/support/create_infra.sh
+# . ${DEVOPS_SCRIPT_DIR}/support/create_kubernetes.sh
+. ${DEVOPS_SCRIPT_DIR}/app_deploy.sh
+# . ${DEVOPS_SCRIPT_DIR}/support/destroy_all.sh
+
+```
+
+### 1.3 Destroy
+
+Destroys all provisioned infrastructure, including the "Service Principal" and "App" created during the bootstrap.
+This is a kill-switch - meant to be used in development to shut down resources to save idle-billing of cloud resources.
+
+- `windows` (creates win/destroy.bat)
+
+```bat win/destroy.bat
+
+rem initialize script dir (via https://stackoverflow.com/a/36351656)
+pushd %~dp0
+set DEVOPS_SCRIPT_DIR=%CD%
+popd
+
+set USE_CASE=destroy
+echo "\n\n=================="
+echo     " Destroy Workflow "
+echo     "==================\n\n"
+
+
+call %DEVOPS_SCRIPT_DIR%\..\globals.bat
+call %DEVOPS_SCRIPT_DIR%\support\bootstrap.bat
+rem call %DEVOPS_SCRIPT_DIR%\support\app_build.bat
+rem call %DEVOPS_SCRIPT_DIR%\support\create_infra.bat
+rem call %DEVOPS_SCRIPT_DIR%\support\create_kubernetes.bat
+rem call %DEVOPS_SCRIPT_DIR%\app_deploy.bat
+call %DEVOPS_SCRIPT_DIR%\support\destroy_all.bat
+
+```
+
+- `*nix` (creates nix/destroy.sh)
+
+```sh nix/destroy.sh
+
+DEVOPS_SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
+set USE_CASE=destroy
+echo "\n\n=================="
+echo     " Destroy Workflow "
+echo     "==================\n\n"
+
+. ${DEVOPS_SCRIPT_DIR}/../globals.sh
+. ${DEVOPS_SCRIPT_DIR}/support/bootstrap.sh
+# . ${DEVOPS_SCRIPT_DIR}/support/app_build.sh
+# . ${DEVOPS_SCRIPT_DIR}/support/create_infra.sh
+# . ${DEVOPS_SCRIPT_DIR}/support/create_kubernetes.sh
+# . ${DEVOPS_SCRIPT_DIR}/app_deploy.sh
+. ${DEVOPS_SCRIPT_DIR}/support/destroy_all.sh
+
+```
+
+## 2. Support Scripts
+
+The support scripts needed to enable the life-cycle scripts of [section 1](#lifecycle-scripts)
+
+### 2.1 Globals
+
+The minimal required configuration that is provided by the owner of the system.
 
 - `windows` (create globals.bat)
 
 ```bat globals.bat
-rem globals
+rem required
 set GH_ORG=acuity-sr
 set GH_REPO=acuity-bkstg
 set REGION_NAME=eastus
 set STAGE=dev
 
-rem customize if you want the app-name to be different
+rem optional
+set SUBSCRIPTION_ID=d8f43804-1ed0-4f0d-b26d-77e8e11e86fd
+
+rem Customize APP_NAME to fit your needs.
+rem It's used as a prefix for all resources
+rem (even the ResourceGroup) created.
 set APP_NAME=%GH_REPO%-%STAGE%-%REGION%
 
 pushd %~dp0
 set SCRIPT_ROOT=%CD%
 popd
-SRC_DIR=%SCRIPT_DIR%/..
+
+rem the project src is typically one level up from the dev-ops "scripts" folder.
+SRC_DIR=%SCRIPT_ROOT%/..
+
+rem convenience definitions
+set RED="[31m [31m"
+set GREEN="[32m [32m"
+set YELLOW="[33m [33m"
+set BLUE="[34m [34m"
+set PURPLE="[35m [35m"
+set CYAN="[36m [36m"
+rem NO_COLOR
+set NC="[0m"
 ```
 
 - `*nix` (create globals.sh)
 
 ```sh globals.sh
-# globals
+# required
 GH_ORG=acuity-sr
 GH_REPO=acuity-bkstg
 REGION_NAME=eastus
 STAGE=dev
 
-# possibly customize
-APP_NAME=$GH_REPO-$STAGE-$REGION
+# optional
+SUBSCRIPTION_ID=d8f43804-1ed0-4f0d-b26d-77e8e11e86fd
+
+# Customize APP_NAME to fit your needs.
+# It's used as a prefix for all resources
+# (even the ResourceGroup) created.
+APP_NAME=${GH_REPO}-${STAGE}-${REGION_NAME}
+
+
+# debug controls
+set -e # stop on error
+# set -x # echo commands, expand variables
+# set -v # echo commands, do not expand variables
+
 
 SCRIPT_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-SRC_DIR=$SCRIPT_ROOT/..
+
+# the project src is typically one level up from the dev-ops "scripts" folder.
+SRC_DIR=${SCRIPT_ROOT}/..
+
+# convenience definitions
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+# NO_COLOR
+NC="\033[0m"
 ```
 
-- `windows` (creates win/run.bat)
+### 2.2 Bootstrap
 
-```bat win/run.bat
+The bootstrap script is meant to initialize the Service Principal.
 
-rem initialize script dir (via https://stackoverflow.com/a/36351656)
-pushd %~dp0
-set SCRIPT_DIR=%CD%
-popd
+It accesses/creates 3 things -
 
-rem bootstrap
-set GH_ORG=acuity-sr
-set APP_NAME=acuity-bkstg
-set SRC_DIR=../acuity-bkstg
-set REGION_NAME=eastus
-set RESOURCE_GROUP=%APP_NAME%-rg
-call %SCRIPT_DIR%\bootstrap.bat
+1. Subscription ID (extracted from the account or specified by the user)
+2. Azure Active Directory Application
+3. Service Principal
 
-rem build
-rem we use a build_app.bat in-lieu of a CI process when working locally
-set GIT_REPO=https://github.com/$GH_ORG/$APP_NAME
-set API_DIR=packages/backend
-set UI_DIR=packages/frontend
-call %SCRIPT_DIR%\build_app.bat
+It works in two modes:
 
-rem infra
-call %SCRIPT_DIR%\create_infra.bat
+1. **Create**: Creates or reuses AD Application, Service Principal and Resource Group.
+2. **Others**: Expects to reuse AD Application, Service Principal and Resource Group. Errors if not found.
 
-
-rem config
-
-call %SCRIPT_DIR%\create_kubernetes.bat
-
-rem app
-
-call %SCRIPT_DIR%\deploy_app.bat
-
-```
-
-- `*nix` (creates nix/run.sh)
-
-```sh nix/run.sh
-
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-
-# bootstrap
-GH_ORG=acuity-sr
-APP_NAME=acuity-bkstg
-REGION_NAME=eastus
-RESOURCE_GROUP=$APP_NAME-rg
-. $SCRIPT_DIR/bootstrap.sh
-
-# # build
-# # we use a build_app.sh in-lieu of a CI process when working locally
-# GIT_REPO=https://github.com/$GH_ORG/$APP_NAME
-# API_DIR=packages/backend
-# UI_DIR=packages/frontend
-# . $SCRIPT_DIR/build_app.sh
-
-# infra
-SUBNET_NAME=$APP_NAME-aks-subnet
-VNET_NAME=$APP_NAME-aks-vnet
-. $SCRIPT_DIR/create_infra.sh
-
-# # config
-# . $SCRIPT_DIR/create_kubernetes.sh
-
-# # app
-# . $SCRIPT_DIR/deploy_app.bat
-
-```
-
-## 3. Bootstrap
-
-### 3.1 Subscription ID
+#### 2.2.1 Subscription ID
 
 As we explored in the section on Azure Management Hierarchies, each Azure deployment is contained within a "subscription". Subscriptions are a logical partition, allowing billing and management control. Creating a subscription is beyond the scope of this document, however, by having a personal login to the Azure cloud, you are working within the purview of a "subscription". At a minimum, it has a clearly defined party to be billed for resources consumed. This could be an employer or your personal credit card used to setup the Azure account.
 
-While we do not create it, we do need the subscription id to create a Resource Group, which
-will in turn contain all the resources we consume.
+While we do not create it, we do need the subscription id to create a Resource Group, which will in turn contain all the resources we consume.
 
 The subscription ID can vary by login. While it's possible (even preferable) to hard code this value for a team, when running this script on your local machine, this will likely vary.
 
 The bootstrap script automates it's extraction - after you have logged via the azure CLI.
 
-- `windows` (creates win/bootstrap.bat)
+- `windows` (creates win/support/bootstrap.bat)
 
-```bat win/bootstrap.bat
+```bat win/support/bootstrap.bat
 
-echo "\n\n****************"
-echo "1. Bootstrapping"
-echo "****************\n\n"
-
-rem specify SUBSCRIPTION_ID here if you'd like to pin it to a specific one.
-rem by default, will ask you to login and use the SUBSCRIPTION_ID tied to your account
-set SUBSCRIPTION_ID=
+echo "\n*****************"
+echo   "* Bootstrapping *"
+echo   "*****************\n\n"
 
 if (%SUBSCRIPTION_ID% == '') (
   echo "Extracting Azure 'Subscription ID' from current login"
@@ -373,26 +539,29 @@ if (%SUBSCRIPTION_ID% == '') (
   az login
 
   rem Picks the subscription tied to the login above
-  rem az account show --query id --output tsv
-  FOR /F "tokens=* USEBACKQ" %%g IN (`az account show --query id --output tsv`) do (SET SUBSCRIPTION_ID=%%g)
-
+  rem az account show --query 'id' --output tsv
+  FOR /F "tokens=* USEBACKQ" %%g IN (`az account show --query 'id' --output tsv`) do (SET SUBSCRIPTION_ID=%%g)
 )
-echo SUBSCRIPTION_ID=%SUBSCRIPTION_ID%
 
+if (%SUBSCRIPTION_ID% == '') (
+  echo "%RED%ERROR: Subscription ID not found%NC%"
+  exit /b -1
+) else (
+  echo "%YELLOW%SUBSCRIPTION_ID:%CYAN% %SUBSCRIPTION_ID% %NC%"
+)
 ```
 
-- `*nix` (creates nix/bootstrap.sh)
+- `*nix` (creates nix/support/bootstrap.sh)
 
-```sh nix/bootstrap.sh
+```sh nix/support/bootstrap.sh
 
-echo "\n\n****************"
-echo "1. Bootstrapping"
-echo "****************\n\n"
+echo "\n*****************"
+echo   "* Bootstrapping *"
+echo   "*****************\n\n"
 
 # specify SUBSCRIPTION_ID here if you'd like to pin it to a specific one.
 # by default, will ask you to login and use the SUBSCRIPTION_ID tied to your account
-SUBSCRIPTION_ID=
-if [[ SUBSCRIPTION_ID == '' ]]
+if [[ ${SUBSCRIPTION_ID} == '' ]]
 then
   echo "Extracting Azure 'Subscription ID' from current login"
 
@@ -400,102 +569,170 @@ then
   az login
 
   # Picks the subscription tied to the login above
-  # az account show --query id --output tsv
-  SUBSCRIPTION_ID=`az account show --query id --output tsv`
+  # az account show --query 'id' --output tsv
+  SUBSCRIPTION_ID=$(az account show --query 'id' --output tsv)
 fi
-echo "SUBSCRIPTION_ID=$SUBSCRIPTION_ID"
+
+if [[ ${SUBSCRIPTION_ID} == '' ]]
+then
+ echo "${RED}ERROR: Subscription ID not found${NC}"
+ exit -1
+else
+ echo "${YELLOW}SUBSCRIPTION_ID:${CYAN} ${SUBSCRIPTION_ID} ${NC}"
+fi
 ```
 
-### 3.2 Resource Group
+#### 2.2.2 Resource Group
 
-- `windows` (appends to win/bootstrap.bat)
+- globals
+  Extract resource names into globals.{sh|bat} to allow use in other lifecycle methods
 
-```bat win/bootstrap.bat
+  - `windows` (globals.bat)
+    ```bat globals.bat
+    set RESOURCE_GROUP=%APP_NAME%-rg
+    ```
+  - `*nix` (globals.sh)
+    ```sh globals.sh
+    RESOURCE_GROUP=${APP_NAME}-rg
+    ```
 
-echo "Create resource group if it doesn't exist"
+- `windows` (appends to win/support/bootstrap.bat)
+
+```bat win/support/bootstrap.bat
+
+set RESOURCE_GROUP=%APP_NAME%-rg
+
+echo "\nResource Group '%RESOURCE_GROUP%'"
+
 FOR /F "tokens=* USEBACKQ" %%g IN (`az group exists -n %RESOURCE_GROUP%`) do (SET rgExists=%%g)
 
-if (%rgExists%=='false') (
-  echo "Creating resource-group '%RESOURCE_GROUP%'"
-  az group create \
-    --name %RESOURCE_GROUP% \
-    --location %REGION_NAME%
+
+if (%rgExists%=='true') (
+  echo "Reusing existing resource group '${RESOURCE_GROUP}'"
 ) else (
-  echo "Reusing existing resource group '$RESOURCE_GROUP'"
+  if (%USE_CASE%=='create') (
+    echo "Creating resource-group '%RESOURCE_GROUP%'"
+    az group create \
+      --name %RESOURCE_GROUP% \
+      --location %REGION_NAME%
+  ) else (
+    echo "%RED% ERROR: Can only create ResourceGroup with USE_CASE=create, not %USE_CASE%%NC%"
+    exit /b -1
+  )
 )
 FOR /F "tokens=* USEBACKQ" %%g IN (`az group show --query 'id' -n %RESOURCE_GROUP%`) do (SET RESOURCE_GROUP_ID=%%g)
 
+if (%RESOURCE_GROUP_ID% == '') (
+  echo "%RED%ERROR: RESOURCE_GROUP_ID not found%NC%"
+  exit /b -1
+) else (
+  echo "%YELLOW%RESOURCE_GROUP_ID:%CYAN% %RESOURCE_GROUP_ID% %NC%"
+)
 ```
 
-- `*nix` (appends to nix/bootstrap.sh)
+- `*nix` (appends to nix/support/bootstrap.sh)
 
-```sh nix/bootstrap.sh
+```sh nix/support/bootstrap.sh
 
-echo "Create resource group if it doesn't exist"
-rgExists=`az group exists -n $RESOURCE_GROUP`
-if [ $? -eq 0 ];
+echo "\nResource Group '${RESOURCE_GROUP}'"
+
+rgExists=$(az group exists -n ${RESOURCE_GROUP})
+
+if [[ ${rgExists} == 'true' ]];
 then
-  echo "Reusing existing resource group '$RESOURCE_GROUP'"
+  echo "Reusing existing resource group '${RESOURCE_GROUP}'"
+elif [[ "${USE_CASE}" == "create" ]]
+then
+  echo "Creating resource-group '${RESOURCE_GROUP}' ${REGION_NAME}"
+  # echo "az group create --name ${RESOURCE_GROUP} --location ${REGION_NAME}"
+  # trap return value of next command & discard. bash seems to treat it as an error.
+  JUNK=$(az group create --name ${RESOURCE_GROUP} --location ${REGION_NAME})
+  unset JUNK
 else
-  echo "Creating resource-group '$RESOURCE_GROUP'"
-  az group create \
-    --name $RESOURCE_GROUP \
-    --location $REGION_NAME
+  echo "${RED} ERROR: Can only create ResourceGroup with USE_CASE=create, not ${USE_CASE}${NC}"
+  exit -1
 fi
 
-RESOURCE_GROUP_ID=$(az group show --query 'id' -n $RESOURCE_GROUP)
 
+RESOURCE_GROUP_ID=$(az group show --query 'id' -n ${RESOURCE_GROUP} -o tsv)
+
+if [[ ${RESOURCE_GROUP_ID} == '' ]]
+then
+ echo "${RED}ERROR: RESOURCE_GROUP_ID not found${NC}"
+ exit /b -1
+else
+ echo "${YELLOW}RESOURCE_GROUP_ID:${CYAN} ${RESOURCE_GROUP_ID} ${NC}"
+fi
 ```
 
-### 3.3 Azure Active Directory Application
+#### 2.2.3 Azure Active Directory Application
 
 We need a service principal to generate credentials for automation to access necessary resources.
 However, before you create a service principal, you need to create an “application” in Azure Active Directory. You can think of this as an identity for the application that needs access to your Azure resources.
 
-- `windows` (appends to win/bootstrap.bat)
+- `windows` (appends to win/support/bootstrap.bat)
 
-```bat win/bootstrap.bat
+```bat win/support/bootstrap.bat
 
-echo "Create Active Directory App if not already existing"
+echo "\nActive Directory Application '%APP_NAME%'"
 
 rem fetch previously created app
-FOR /F "tokens=* USEBACKQ" %%g IN (`az ad app list --query [].appId -o tsv --display-name %APP_NAME%`) do (SET APP_ID=%%g)
+FOR /F "tokens=* USEBACKQ" %%g IN (`az ad app list --query '[].appId' -o tsv --display-name %APP_NAME%`) do (SET APP_ID=%%g)
 
 if (%APP_ID%=="") (
-  rem APP_ID not found, create new Active directory app
-  az ad app create --display-name %APP_NAME%
-  echo "created new App '%APP_NAME%'"
+  if (%USE_CASE%=='create') (
+    rem APP_ID not found, create new Active directory app
+    az ad app create --display-name %APP_NAME%
+    echo "created new App '%APP_NAME%'"
+  ) else (
+      echo "ERROR: Can only create App with USE_CASE=create, not %USE_CASE%"
+      exit /b -1
+  )
 )
 
 rem extract APP_ID (needed to create the service principal)
-FOR /F "tokens=* USEBACKQ" %%g IN (`az ad app list --query [].appId -o tsv --display-name %APP_NAME%`) do (SET APP_ID=%%g)
+FOR /F "tokens=* USEBACKQ" %%g IN (`az ad app list --query '[].appId' -o tsv --display-name %APP_NAME%`) do (SET APP_ID=%%g)
 
-echo "APP_ID=%APP_ID%"
+if (%APP_ID% == '') (
+  echo "%RED%ERROR: APP_ID not found%NC%"
+  exit /b -1
+) else (
+  echo "%YELLOW%APP_ID:%CYAN% %APP_ID% %NC%"
+)
 ```
 
-- `*nix` (appends to nix/bootstrap.sh)
+- `*nix` (appends to nix/support/bootstrap.sh)
 
-```sh nix/bootstrap.sh
+```sh nix/support/bootstrap.sh
 
-echo "Create Active Directory App if not already existing"
+echo "\nActive Directory Application '${APP_NAME}'"
+
+appExists=$(az ad app list --query '[].appId' -o tsv --display-name ${APP_NAME})
 
 # fetch previously created app
-APP_ID=$(az ad app list --query [].appId -o tsv --display-name $APP_NAME)
-
-if [ $? -ne 0 ];
+if [[ ${appExists} != "" ]]
 then
+  echo "Reusing AD Application '${APP_NAME}'"
+else
   # APP_ID not found, create new Active directory app
-  az ad app create --display-name $APP_NAME
-  echo "created new App '$APP_NAME'"
+  _APP=$(az ad app create --display-name ${APP_NAME})
+  echo "Created AD Application '${APP_NAME}'"
 fi
 
 # extract APP_ID (needed to create the service principal)
-APP_ID=`az ad app list --query [].appId -o tsv --display-name $APP_NAME`
-echo "APP_ID=$APP_ID"
+APP_ID=$(az ad app list --query '[].appId' -o tsv --display-name ${APP_NAME})
+
+if [[ ${APP_ID} == '' ]]
+then
+ echo "${RED}ERROR: APP_ID not found${NC}"
+ exit -1
+else
+ echo "${YELLOW}APP_ID:${CYAN} ${APP_ID} ${NC}"
+fi
 
 ```
 
-### 3.3 Service Principal
+#### 2.2.4 Service Principal
 
 With subscription id in hand, we are now in a position to create our service principal.
 
@@ -505,87 +742,147 @@ Creation of the service principal returns the authenticatin credentials. We will
 
 > NOTE: It seems managed identities might be a better way to provide RBAC privileges. However we are unclear as to the final set of resources needed and whether all resources required will support Managed identities. A move to managed identities will need to be investigated and done at a later point in time.
 
-- `windows` (appends to win/bootstrap.bat)
+globals
+Extract resource names into globals.{sh|bat} to allow use in other lifecycle methods
 
-```bat win/bootstrap.bat
+- `windows` (globals.bat)
+  ```bat globals.bat
+  set SERVICE_PRINCIPAL=%APP_NAME%-sp
+  set SP_FNAME=./%SERVICE_PRINCIPAL%-creds.dat
+  ```
+- `*nix` (globals.sh)
 
-rem initialize script dir (via https://stackoverflow.com/a/36351656)
-pushd %~dp0
-set SCRIPT_DIR=%CD%
-popd
+  ```sh globals.sh
+  SERVICE_PRINCIPAL=${APP_NAME}-sp
+  SP_FNAME=./${SERVICE_PRINCIPAL}-creds.dat
+  ```
 
+- `windows` (appends to win/support/bootstrap.bat)
 
-set SERVICE_PRINCIPAL=%APP_NAME%-sp
-set SP_FNAME=./%APP_NAME%-sp-creds.dat
+```bat win/support/bootstrap.bat
+
 rem create service principal
+echo "\nService Principal '%SERVICE_PRINCIPAL%'"
+
 if exist %SP_FNAME% (
   echo "Reusing existing service principal %APP_NAME%-sp"
-  node %SCRIPT_DIR%/../bin/decrypt.js %SP_FNAME%
+  node %SCRIPT_ROOT%/bin/decrypt.js %SP_FNAME%
   FOR /F "tokens=* USEBACKQ" %%g IN (`type %SP_FNAME%.decrypted`) do (SET SP_CREDENTIALS=%%g)
   rm %SP_FNAME%.decrypted
 ) else (
-  FOR /F "tokens=* USEBACKQ" %%g IN (`\
-    az ad sp create-for-rbac \
-      --sdk-auth \
-      --skip-assignment \
-      --name %SERVICE_PRINCIPAL%`) do (SET SP_CREDENTIALS=%%g)
-  echo %SP_CREDENTIALS% > %SP_FNAME%
-  node %SCRIPT_DIR%/../bin/encrypt.js %SP_FNAME%
+  if( %USE_CASE% == 'create) (
+    FOR /F "tokens=* USEBACKQ" %%g IN (
+      $(az ad sp create-for-rbac \
+        --sdk-auth \
+        --skip-assignment \
+        --name %SERVICE_PRINCIPAL%`) do (SET SP_CREDENTIALS=%%g)
+    echo %SP_CREDENTIALS% > %SP_FNAME%
+    node %SCRIPT_ROOT%/bin/encrypt.js %SP_FNAME%
+  ) else (
+    echo "ERROR: Cannot only create ServicePrincipal with USE_CASE='create', not %USE_CASE%"
+    exit /b -1
+  )
 )
 FOR /F "tokens=* USEBACKQ" %%g IN (`az ad sp list --query '[].objectId' -o tsv --display-name %SERVICE_PRINCIPAL%`) do (SET SERVICE_PRINCIPAL_ID=%%g)
 
+if (%SERVICE_PRINCIPAL_ID% == '') (
+  echo "%RED%ERROR: SERVICE_PRINCIPAL_ID not found%NC%"
+  exit /b -1
+) else (
+  echo "%YELLOW%SERVICE_PRINCIPAL_ID:%CYAN% %SERVICE_PRINCIPAL_ID% %NC%"
+)
+
 ```
 
-- `*nix` (appends to nix/bootstrap.sh)
+- `*nix` (appends to nix/support/bootstrap.sh)
 
-```sh nix/bootstrap.sh
+```sh nix/support/bootstrap.sh
 
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+# create service principal and store/use encrypted credentials
+echo "\n${YELLOW}SERVICE_PRINCIPAL: ${CYAN}${SERVICE_PRINCIPAL}${NC}"
 
-SERVICE_PRINCIPAL="$APP_NAME-sp"
-SP_FNAME="./$APP_NAME-sp-creds.dat"
-if test -f $SP_FNAME
+if test -f ${SP_FNAME}
 then
-  node $SCRIPT_DIR/../bin/decrypt.js $SP_FNAME
-  SP_CREDENTIALS=`cat $SP_FNAME.decrypted`
-  rm $SP_FNAME.decrypted
+  # use previously encrypted credentials. Will prompt for 'password'
+  node ${SCRIPT_ROOT}/bin/decrypt.js ${SP_FNAME}
+  SP_CREDENTIALS=`cat ${SP_FNAME}.decrypted`
+  rm ${SP_FNAME}.decrypted
 else
-  SP_CREDENTIALS=`
-  az ad sp create-for-rbac \
-    --sdk-auth \
-    --skip-assignment\
-    --name $SERVICE_PRINCIPAL`
-  echo $SP_CREDENTIALS > $SP_FNAME
-  node $SCRIPT_DIR/../bin/encrypt.js $SP_FNAME
+  SP_CREDENTIALS=$(az ad sp create-for-rbac \
+    --sdk-auth true \
+    --skip-assignment \
+    --name ${SERVICE_PRINCIPAL})
+  echo ${SP_CREDENTIALS} > ${SP_FNAME}
+  # encrypt secrets with 'password' for next iteration.
+  node ${SCRIPT_ROOT}/bin/encrypt.js ${SP_FNAME}
 fi
 
-SERVICE_PRINCIPAL_ID=$(az ad sp list --query '[].objectId' -o tsv --display-name $SERVICE_PRINCIPAL)
+SERVICE_PRINCIPAL_ID=$(az ad sp list --query '[].objectId' -o tsv --display-name ${SERVICE_PRINCIPAL})
+
+if [[ ${SERVICE_PRINCIPAL}_ID == '' ]]
+then
+ echo "${RED}ERROR: SERVICE_PRINCIPAL_ID not found${NC}"
+ echo "(in development, try deleting the credentials file '${SP_FNAME}' and retry)"
+ exit /b -1
+else
+ echo "${YELLOW}SERVICE_PRINCIPAL_ID:${CYAN} ${SERVICE_PRINCIPAL}_ID ${NC}"
+fi
 
 ```
 
-## 4. Build
 
-- `windows` (creates win/app_build.bat)
+#### 2.2.5 Bootstrap trailer
+- `windows` (win/support/bootstrap.bat)
 
-```bat win/app_build.bat
+```bat win/support/bootstrap.bat
+echo "\n\n%GREEN%Bootstrap successful%NC%"
+```
+
+- `*nix` (nix/support/bootstrap.sh)
+
+```sh nix/support/bootstrap.sh
+echo "\n\n${GREEN}Bootstrap successful${NC}"
+```
+
+### 2.3 Build
+
+- `windows` (creates win/support/app_build.bat)
+
+```bat win/support/app_build.bat
 
 ```
 
-- `*nix` (creates nix/app_build.sh)
+- `*nix` (creates nix/support/app_build.sh)
 
-```sh nix/app_build.sh
+```sh nix/support/app_build.sh
 
 ```
 
-## 5. Provisioning Infrastructure
+### 2.4 Infrastructure
 
-### 5.1 Provision Networking
+We are finally ready to provision the necessary cloud infrastructure. However, we also take responsibility to delete the infrastructure in this script (eventually we'll hand off the infrastructure lifecycle management to a framework like terraform)
+
+#### 2.4.1 Networking
 
 Provision a virtual network, using Azure Container Networking Interface (CNI).
 
-- `windows` (creates win/create_infra.bat)
+- globals
+  Extract resource names into globals.{sh|bat} to allow use in other lifecycle methods
 
-```bat win/create_infra.bat
+  - `windows` (globals.bat)
+    ```bat globals.bat
+    set SUBNET_NAME=%APP_NAME%-aks-subnet
+    set VNET_NAME=%APP_NAME%-aks-vnet
+    ```
+  - `*nix` (globals.sh)
+    ```sh globals.sh
+    SUBNET_NAME=${APP_NAME}-aks-subnet
+    VNET_NAME=${APP_NAME}-aks-vnet
+    ```
+
+- `windows` (creates win/support/create_infra.bat)
+
+```bat win/support/create_infra.bat
 
 echo "\n\n******************************"
 echo "2. Provisioning infrastructure"
@@ -621,61 +918,75 @@ FOR /F "tokens=* USEBACKQ" %%g IN (`az network vnet subnet show \
     --query id -o tsv`) do (SET SUBNET_ID=%%g)
 ```
 
-- `*nix` (creates nix/create_infra.sh)
+- `*nix` (creates nix/support/create_infra.sh)
 
-```sh nix/create_infra.sh
+```sh nix/support/create_infra.sh
 
 echo "\n\n******************************"
 echo "2. Provisioning infrastructure"
 echo "******************************\n\n"
 
-SUBNET_NAME=$APP_NAME-aks-subnet
-VNET_NAME=$APP_NAME-aks-vnet
 
 # check to see if previously created
 SUBNET_ID=$(az network vnet subnet show \
-    --resource-group $RESOURCE_GROUP \
-    --vnet-name $VNET_NAME \
-    --name $SUBNET_NAME \
+    --resource-group ${RESOURCE_GROUP} \
+    --vnet-name ${VNET_NAME} \
+    --name ${SUBNET_NAME} \
     --query id -o tsv)
 
-if [ $? -eq 0 ];
+if [[ $? == 0 ]];
 then
-  echo "Reusing virtual network '$VNET_NAME' and subnet '$SUBNET_NAME'"
+  echo "Reusing virtual network '${VNET_NAME}' and subnet '${SUBNET_NAME}'"
 else
-  echo "Creating virtual network '$VNET_NAME' and subnet '$SUBNET_NAME'"
+  echo "Creating virtual network '${VNET_NAME}' and subnet '${SUBNET_NAME}'"
   TMP=$(az network vnet create \
-    --resource-group $RESOURCE_GROUP \
-    --location $REGION_NAME \
-    --name $VNET_NAME \
+    --resource-group ${RESOURCE_GROUP} \
+    --location ${REGION_NAME} \
+    --name ${VNET_NAME} \
     --address-prefixes 10.0.0.0/8 \
-    --subnet-name $SUBNET_NAME \
+    --subnet-name ${SUBNET_NAME} \
     --subnet-prefixes 10.240.0.0/16)
 fi
 
 SUBNET_ID=$(az network vnet subnet show \
-    --resource-group $RESOURCE_GROUP \
-    --vnet-name $VNET_NAME \
-    --name $SUBNET_NAME \
+    --resource-group ${RESOURCE_GROUP} \
+    --vnet-name ${VNET_NAME} \
+    --name ${SUBNET_NAME} \
     --query id -o tsv)
 
-echo SUBNET_ID=$SUBNET_ID
+echo SUBNET_ID=${SUBNET_ID}
 
 ```
 
-### 5.2 Provision AKS
+#### 2.4.2 Azure Kubernetes Service (AKS)
 
-- `windows` (creates win/create_infra.bat)
+- globals
+  Extract resource names into globals.{sh|bat} to allow use in other lifecycle methods
 
-```bat win/create_infra.bat
+  - `windows` (globals.bat)
+    ```bat globals.bat
+    set AKS_CLUSTER_NAME=%APP_NAME%-%STAGE%-aks
+    ```
+  - `*nix` (globals.sh)
+    ```sh globals.sh
+    AKS_CLUSTER_NAME=${APP_NAME}-${STAGE}-aks
+    ```
+
+- `windows` (creates win/support/create_infra.bat)
+
+```bat win/support/create_infra.bat
 
 FOR /F "tokens=* USEBACKQ" %%g IN (`az aks get-versions \
     --location %REGION_NAME% \
     --query 'orchestrators[?!isPreview] | [-1].orchestratorVersion' \
     --output tsv`) do (SET VERSION=%%g)
 
-set AKS_CLUSTER_NAME=%APP_NAME%-%STAGE%-aks
+rem Check to see if the cluster already exists
+FOR /F "tokens=* USEBACKQ" %%g IN (`az aks show \
+    --name %AKS_CLUSTER_NAME%
+    --output tsv`) do (SET AKS_CLUSTER_ID=%%g)
 
+if (%AKS_CLUSTER_ID% == '') (
 FOR /F "tokens=* USEBACKQ" %%g IN (`az aks create \
   --resource-group %RESOURCE_GROUP% \
   --name %AKS_CLUSTER_NAME% \
@@ -690,80 +1001,114 @@ FOR /F "tokens=* USEBACKQ" %%g IN (`az aks create \
   --dns-service-ip 10.2.0.10 \
   --docker-bridge-address 172.17.0.1/16 \
   --generate-ssh-keys`) do (SET AKS_CLUSTER=%%g)
+  echo "Created new cluster %AKS_CLUSTER_NAME%"
+) else (
+  echo "Reusing existing cluster %AKS_CLUSTER_NAME%"
+)
+
+rem refetch cluster_id, incase we just created it.
+FOR /F "tokens=* USEBACKQ" %%g IN (`az aks show \
+    --name %AKS_CLUSTER_NAME%
+    --output tsv`) do (SET AKS_CLUSTER_ID=%%g)
+
+echo "%YELLOW%AKS Cluster %AKS_CLUSTER_NAME%=%CYAN%%AKS_CLUSTER_ID%%NC%"
 
 ```
 
-- `*nix` (creates nix/create_infra.sh)
+- `*nix` (creates nix/support/create_infra.sh)
 
-```sh nix/create_infra.sh
+```sh nix/support/create_infra.sh
 
 VERSION=$(az aks get-versions \
-    --location $REGION_NAME \
+    --location ${REGION_NAME} \
     --query 'orchestrators[?!isPreview] | [-1].orchestratorVersion' \
     --output tsv)
 
-AKS_CLUSTER_NAME=$APP_NAME-$STAGE-aks
+# Check to see if the cluster already exists
+AKS_CLUSTER_ID = $(az aks show \
+  --output tsv \
+  --query ".id" \
+  --name ${AKS_CLUSTER_NAME})
 
-AKS_CLUSTER =$(az aks create \
-  --resource-group $RESOURCE_GROUP \
-  --name $AKS_CLUSTER_NAME \
-  --vm-set-type VirtualMachineScaleSets \
-  --node-count 2 \
-  --load-balancer-sku standard \
-  --location $REGION_NAME \
-  --kubernetes-version $VERSION \
-  --network-plugin azure \
-  --vnet-subnet-id $SUBNET_ID \
-  --service-cidr 10.2.0.0/24 \
-  --dns-service-ip 10.2.0.10 \
-  --docker-bridge-address 172.17.0.1/16 \
-  --generate-ssh-keys)
+if [[ ${AKS_CLUSTER_ID} == '' ]]
+then
+  AKS_CLUSTER =$(az aks create \
+    --resource-group ${RESOURCE_GROUP} \
+    --name ${AKS_CLUSTER_NAME} \
+    --vm-set-type VirtualMachineScaleSets \
+    --node-count 2 \
+    --load-balancer-sku standard \
+    --location ${REGION_NAME} \
+    --kubernetes-version ${VERSION} \
+    --network-plugin azure \
+    --vnet-subnet-id ${SUBNET_ID} \
+    --service-cidr 10.2.0.0/24 \
+    --dns-service-ip 10.2.0.10 \
+    --docker-bridge-address 172.17.0.1/16 \
+    --generate-ssh-keys)
+  if [[ $? == 0 ]]
+  then
+    echo "${GREEN}Created new AKS Cluster ${AKS_CLUSTER_NAME}${NC}"
 
-```
+else
+  echo "Reusing AKS Cluster ${AKS_CLUSTER_NAME}"
+fi
+# re-initialize CLUSTER_ID, in case we created it.
+AKS_CLUSTER_ID = $(az aks show \
+  --output tsv \
+  --query ".id" \
+  --name ${AKS_CLUSTER_NAME})
 
-- `windows` (creates win/create_infra.bat)
-
-```bat win/create_infra.bat
-
-```
-
-- `*nix` (creates nix/create_infra.sh)
-
-```sh nix/create_infra.sh
-
-```
-
-- `windows` (creates win/create_infra.bat)
-
-```bat win/create_infra.bat
-
-```
-
-- `*nix` (creates nix/create_infra.sh)
-
-```sh nix/create_infra.sh
-
-```
-
-## 6. Config
-
-### 6.1 Create
-
-- `windows` (creates win/create_kubernetes.bat)
-
-```bat win/create_kubernetes.bat
+  echo "${YELLOW}AKS Cluster ${AKS_CLUSTER_NAME}=${CYAN}AKS_CLUSTER_ID${NC}"
+) else (
+    echo "${RED}
+)
 
 ```
 
-- `*nix` (creates nix/create_kubernetes.sh)
+- `windows` (creates win/support/create_infra.bat)
 
-```sh nix/create_kubernetes.sh
+```bat win/support/create_infra.bat
 
 ```
 
-### 6.2 Api
+- `*nix` (creates nix/support/create_infra.sh)
 
-#### 6.2.1 Deployment
+```sh nix/support/create_infra.sh
+
+```
+
+- `windows` (creates win/support/create_infra.bat)
+
+```bat win/support/create_infra.bat
+
+```
+
+- `*nix` (creates nix/support/create_infra.sh)
+
+```sh nix/support/create_infra.sh
+
+```
+
+### 2.5. Configure Kubernetes
+
+#### 2.5.1 Create
+
+- `windows` (creates win/support/create_kubernetes.bat)
+
+```bat win/support/create_kubernetes.bat
+
+```
+
+- `*nix` (creates nix/support/create_kubernetes.sh)
+
+```sh nix/support/create_kubernetes.sh
+
+```
+
+#### 2.5.2 Api
+
+##### 2.5.2.1 Deployment
 
 - creates api-deployment.yml
 
@@ -771,7 +1116,7 @@ AKS_CLUSTER =$(az aks create \
 
 ```
 
-#### 6.2.2 Service
+##### 2.5.2.2 Service
 
 - creates api-service.yml
 
@@ -779,9 +1124,9 @@ AKS_CLUSTER =$(az aks create \
 
 ```
 
-### 6.3 UI
+#### 2.5.3 UI
 
-#### 6.3.1 Deployment
+##### 2.5.3.1 Deployment
 
 - creates ui-deployment.yml
 
@@ -789,7 +1134,7 @@ AKS_CLUSTER =$(az aks create \
 
 ```
 
-#### 6.3.2 Service
+##### 2.5.3.2 Service
 
 - creates ui-service.yml
 
@@ -797,7 +1142,7 @@ AKS_CLUSTER =$(az aks create \
 
 ```
 
-## 7. Deploy
+### 2.6. Deploy
 
 - `windows` (creates win/app_deploy.bat)
 
@@ -811,42 +1156,254 @@ AKS_CLUSTER =$(az aks create \
 
 ```
 
-## 8 Destroy
+### 2.7 Destroy
 
 This is a brute force mechanism of destroying the resource-group and all associated resources.
-For the moment, it's meant to reduce biulling to $0 and meant for use in development.
+For the moment, it's meant to reduce billing to $0 and meant for use in development.
 
 > WARNING: Significant caution in using this for any live system advised. This can cause serious disruption to any live service - recovery might not be possible, data-loss is very very likely.
 
-- `windows` (creates win/destroy.bat)
+Eventually, most of this should be handled by a framework like terraform, but for the moment, we do it in script form.
 
-```bat win/destroy.bat
+Just like during creation, we build the script up in pieces. The deletion has to be done in the inverse order of creation.
 
-rem initialize script dir (via https://stackoverflow.com/a/36351656)
-pushd %~dp0
-set SCRIPT_DIR=%CD%
-popd
+- `windows` (win/support/destroy_all.bat)
 
-rem bootstrap
-set APP_NAME=acuity-bkstg
-set REGION_NAME=eastus
-set RESOURCE_GROUP=%APP_NAME%-rg
-call %SCRIPT_DIR%\bootstrap.bat
+```bat win/support/destroy_all.bat
+echo "\n\n***************"
+echo     "* Destroy_all *"
+echo     "***************\n"
+```
 
-az group delete --resource-group %RESOURCE_GROUP% --no-wait
+- `*nix*` (nix/support/destroy_all.sh)
+
+```sh nix/support/destroy_all.sh
+echo "\n\n***************"
+echo     "* Destroy_all *"
+echo     "***************\n"
 
 ```
 
-- `*nix` (creates nix/destroy.sh)
+#### AKS (destroy)
 
-```sh nix/destroy.sh
+- `windows` (win/support/destroy_all.bat)
 
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-. $SCRIPT_DIR/bootstrap.sh
+```bat win/support/destroy_all.bat
 
-az group delete --resource-group %RESOURCE_GROUP% --no-wait
-az ad app delete --id $APP_ID
-az ad sp delete
+rem FOR /F "tokens=* USEBACKQ" %%g IN (`az aks show \
+rem     --name %AKS_CLUSTER_NAME% \
+rem     --output tsv`) do (SET AKS_CLUSTER_ID=%%g)
+rem 
+rem if (%AKS_CLUSTER_ID% != '') (
+rem   echo "Initiating delete of AKS cluster %AKS_CLUSTER_NAME%. This might take a while"
+rem   az aks delete --name %AKS_CLUSTER_NAME% --resource-group %RESOURCE_GROUP%
+rem   if (%errorlevel% == 0) (
+rem       echo "%GREEN%Deleted AKS Cluster %AKS_CLUSTER_NAME%%NC%"
+rem   ) else (
+rem       echo "%RED%ERROR: failed to delete AKS Cluster %AKS_CLUSTER_NAME%%NC%"
+rem       exit /b -1
+rem   )
+rem ) else (
+rem   echo "%YELLOW%Skip deleting AKS Cluster %AKS_CLUSTER_NAME%(not found)%NC%"
+rem )
+
+```
+
+- `*nix` (nix/support/destroy_all.sh)
+
+```sh nix/support/destroy_all.sh
+
+# echo "Deleting AKS cluster '${AKS_CLUSTER_NAME}'"
+
+# if $(az aks show \
+#   --output tsv \
+#   --query "[].id" \
+#   --resource-group ${RESOURCE_GROUP} \
+#   --name ${AKS_CLUSTER_NAME}) 2>/dev/null
+# then
+#   echo "Initiating delete of AKS cluster ${AKS_CLUSTER_NAME}. This might take a while"
+#   az aks delete --name ${AKS_CLUSTER_NAME} --resource-group ${RESOURCE_GROUP}
+#   if [[$? == 0]]
+#   then
+#     echo "${GREEN}Deleted AKS Cluster ${AKS_CLUSTER_NAME}${NC}"
+#   else
+#     echo "${RED}ERROR: failed to delete AKS Cluster ${AKS_CLUSTER_NAME}${NC}"
+#     exit -1
+#   fi
+# else
+#   echo "${YELLOW}Skip deleting AKS Cluster ${AKS_CLUSTER_NAME}(not found)${NC}"
+# fi
+
+```
+
+#### Networking (destroy)
+
+- `windows` (win/support/destroy_all.bat)
+
+```bat win/support/destroy_all.bat
+
+rem networking (destroy)
+
+rem fetch SUBNET_ID
+rem FOR /F "tokens=* USEBACKQ" %%g IN (`az network vnet subnet show \
+rem     --resource-group %RESOURCE_GROUP% \
+rem     --vnet-name %VNET_NAME% \
+rem     --name %SUBNET_NAME% \
+rem     --query id -o tsv`) do (SET SUBNET_ID=%%g)
+rem 
+rem if (%SUBNET_ID% != '') (
+rem   echo "deleting subnet %SUBNET_NAME%"
+rem   az network vnet subnet delete \
+rem     --name %SUBNET_NAME% \
+rem     --vnet-name %VNET_NAME% \
+rem     --resource-group %RESOURCE_GROUP% \
+rem     --subscription %SUBSCRIPTION_ID%
+rem   if(%errorlevel% == 0) (
+rem     echo "deleting virtual network %VNET_NAME%"
+rem     az network vnet delete \
+rem       --name %VNET_NAME% \
+rem       --resource-group %RESOURCE_GROUP% \
+rem       --subscription %SUBSCRIPTION_ID%
+rem   )
+rem   if (%errorlevel% == 0) (
+rem       echo "%GREEN%Deleted sub+vnet %VNET_NAME%:%SUBNET_NAME%%NC%"
+rem   ) else (
+rem       echo "%RED%ERROR: failed to delete sub+vnet %VNET_NAME%:%SUBNET_NAME%%NC%"
+rem       exit /b -1
+rem   )
+rem ) else (
+rem   echo "%YELLOW%Skip deleting sub+vnet %VNET_NAME%:%SUBNET_NAME%(not found)%NC%"
+rem )
+
+```
+
+- `*nix` (nix/support/destroy.sh)
+
+```sh nix/support/destroy_all.sh
+
+# networking (destroy)
+
+# if $(az network vnet subnet show \
+#     --resource-group ${RESOURCE_GROUP} \
+#     --vnet-name ${VNET_NAME} \
+#     --name ${SUBNET_NAME} \
+#     --query id -o tsv) 2>/dev/null
+# then
+#   echo "deleting subnet ${SUBNET_NAME}"
+#   $(az network vnet subnet delete \
+#     --name ${SUBNET_NAME} \
+#     --vnet-name ${VNET_NAME} \
+#     --resource-group ${RESOURCE_GROUP} \
+#     --subscription ${SUBSCRIPTION_ID}) 
+#   if [[ $? == 0 ]]
+#   then
+#     echo "deleting virtual network ${VNET_NAME}"
+#     $(az network vnet delete \
+#       --name ${VNET_NAME} \
+#       --resource-group ${RESOURCE_GROUP} \
+#       --subscription ${SUBSCRIPTION_ID})
+#   fi
+#   if [[ $? == 0 ]]
+#   then
+#       echo "${GREEN}Deleted sub+vnet ${VNET_NAME}:${SUBNET_NAME}${NC}"
+#   else
+#       echo "${RED}ERROR: failed to delete sub+vnet ${VNET_NAME}:${SUBNET_NAME}${NC}"
+#       exit -1
+#   fi
+# else
+#   echo "${YELLOW}Skip deleting sub+vnet ${VNET_NAME}:${SUBNET_NAME}(not found)${NC}"
+# fi
+
+```
+
+#### Bootstrap (destroy)
+
+- `windows` (win/support/destroy_all.bat)
+
+```bat win/support/destroy_all.bat
+rem bootstrap (destroy)
+echo "delete SERVICE_PRINCIPAL %SERVICE_PRINCIPAL% (%SERVICE_PRINCIPAL_ID%)"
+az ad sp delete --id %SERVICE_PRINCIPAL_ID%
+del ${SP_FNAME}
+echo "delete AD APPLICATION %APP_NAME% (%APP_ID%)"
+az ad app delete --id %APP_ID%
+echo "delete RESOURCE_GROUP %RESOURCE_GROUP% (%RESOURCE_GROUP_ID%)"
+az group delete --resource-group %RESOURCE_GROUP%
+```
+
+- `*nix` (nix/support/destroy.sh)
+
+```sh nix/support/destroy_all.sh
+# bootstrap (destroy)
+echo "${RED}delete ${YELLOW}SERVICE_PRINCIPAL ${CYAN}${SERVICE_PRINCIPAL} (${SERVICE_PRINCIPAL}_ID)${NC}"
+az ad sp delete --id ${SERVICE_PRINCIPAL_ID}
+rm ${SP_FNAME}
+# echo "delete AD Application  ${APP_NAME} (${APP_ID})"
+# az ad app delete --id ${APP_ID}
+echo "${RED}delete ${YELLOW}RESOURCE_GROUP ${CYAN}${RESOURCE_GROUP} (${RESOURCE_GROUP}_ID)${NC}"
+az group delete --resource-group ${RESOURCE_GROUP}
+
+echo "\n\n${GREEN}Destroyed all resources successfully${NC}"
+```
+
+### 2.8 Read
+
+When developing the script, it's sometimes useful to know id's and the like of all existing resources. This provides a simple way to use the globals.{bat,sh} to find all resources
+
+- `windows` (bat/read.bat)
+
+```bat bat/read.bat
+
+```
+
+- `*nix` (nix/read.sh)
+
+```sh nix/read.sh
+DEVOPS_SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
+USE_CASE=create
+echo "\n\n======"
+echo     " Read "
+echo     "======\n\n"
+
+. ${DEVOPS_SCRIPT_DIR}/../globals.sh
+
+echo "\nGlobals"
+echo   "-------"
+echo "${YELLOW}GH_ORG= ${CYAN}${GH_ORG}${NC}"
+echo "${YELLOW}GH_REPO= ${CYAN}${GH_REPO}${NC}"
+echo "${YELLOW}REGION_NAME= ${CYAN}${REGION_NAME}${NC}"
+echo "${YELLOW}STAGE= ${CYAN}${STAGE}${NC}"
+echo "${YELLOW}SUBSCRIPTION_ID= ${CYAN}${SUBSCRIPTION_ID}${NC}"
+echo "${YELLOW}APP_NAME= ${CYAN}${APP_NAME}${NC}"
+
+echo "${YELLOW}SCRIPT_ROOT= ${CYAN}${SCRIPT_ROOT}${NC}"
+echo "${YELLOW}SRC_DIR= ${CYAN}${SRC_DIR}${NC}"
+
+set +e # ignore errors and keep going.
+echo "\nBootstrap"
+echo   "---------"
+APP_ID=$(az ad app list --query '[].appId' -o tsv --display-name ${APP_NAME})
+echo "${YELLOW}APP_ID= ${CYAN}${APP_ID}${NC}"
+
+echo "${YELLOW}RESOURCE_GROUP= ${CYAN}${RESOURCE_GROUP}${NC}"
+RESOURCE_GROUP_ID=$(az group show --query 'id' -n ${RESOURCE_GROUP})
+echo "${YELLOW}RESOURCE_GROUP_ID= ${CYAN}${RESOURCE_GROUP_ID}${NC}"
+
+echo "${YELLOW}SERVICE_PRINCIPAL= ${CYAN}${SERVICE_PRINCIPAL}${NC}"
+echo "${YELLOW}SP_FNAME= ${CYAN}${SP_FNAME}${NC}"
+
+echo "\nInfrastructure"
+echo   "--------------"
+echo "${YELLOW}SUBNET_NAME= ${CYAN}${SUBNET_NAME}${NC}"
+echo "${YELLOW}VNET_NAME= ${CYAN}${VNET_NAME}${NC}"
+echo "${YELLOW}AWS_CLUSTER_NAME= ${CYAN}${AWS_CLUSTER_NAME}${NC}"
+
+# echo "\nKubernetes"
+# echo   "----------"
+
+# echo "\nApplication"
+# echo   "-----------"
 ```
 
 ## TODO
@@ -857,3 +1414,4 @@ These are a list of enhancements to be worked upon in next iterations
 - [ ] Use `Managed Identities`?
 - [ ] `Azure Key Vault` to store secrets
 - [ ] `terraform`` for infrastructure specification and deployment
+- [ ] human-in-the-loop to prevent accidental delete/destroy of production setups

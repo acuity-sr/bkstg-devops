@@ -110,7 +110,7 @@ Helm is the package manager for Kubernetes, and you can read detailed background
 [Installation instructions](https://github.com/cli/cli#installation)
 The github CLI - we use this to install github secrets when necessary
 
-## Checklist
+## Checklist (scripts)
 
 While we cannot provide an automated installation script, we _can_ provide a checklist
 script that can validate all pre-reqs are available and provide helpful text on the console
@@ -137,7 +137,8 @@ if(%errorlevel% EQ 0) (
 
 set RED="[31m [31m"
 set GREEN="[31m [32m"
-set NC="[0m"
+rem NO_COLOR
+set NC="[0m" 
 
 where node
 if (%errorlevel% NEQ 0) (

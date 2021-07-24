@@ -13,7 +13,8 @@ if(%errorlevel% EQ 0) (
 
 set RED="[31m [31m"
 set GREEN="[31m [32m"
-set NC="[0m"
+rem NO_COLOR
+set NC="[0m" 
 
 where node
 if (%errorlevel% NEQ 0) (

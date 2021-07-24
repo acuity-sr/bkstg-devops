@@ -39,8 +39,12 @@ FOR /F "tokens=* USEBACKQ" %%g IN (`az aks get-versions \
     --query 'orchestrators[?!isPreview] | [-1].orchestratorVersion' \
     --output tsv`) do (SET VERSION=%%g)
 
-set AKS_CLUSTER_NAME=%APP_NAME%-%STAGE%-aks
+rem Check to see if the cluster already exists
+FOR /F "tokens=* USEBACKQ" %%g IN (`az aks show \
+    --name %AKS_CLUSTER_NAME%
+    --output tsv`) do (SET AKS_CLUSTER_ID=%%g)
 
+if (%AKS_CLUSTER_ID% == '') (
 FOR /F "tokens=* USEBACKQ" %%g IN (`az aks create \
   --resource-group %RESOURCE_GROUP% \
   --name %AKS_CLUSTER_NAME% \
@@ -55,6 +59,17 @@ FOR /F "tokens=* USEBACKQ" %%g IN (`az aks create \
   --dns-service-ip 10.2.0.10 \
   --docker-bridge-address 172.17.0.1/16 \
   --generate-ssh-keys`) do (SET AKS_CLUSTER=%%g)
+  echo "Created new cluster %AKS_CLUSTER_NAME%"
+) else (
+  echo "Reusing existing cluster %AKS_CLUSTER_NAME%"
+)
+
+rem refetch cluster_id, incase we just created it.
+FOR /F "tokens=* USEBACKQ" %%g IN (`az aks show \
+    --name %AKS_CLUSTER_NAME%
+    --output tsv`) do (SET AKS_CLUSTER_ID=%%g)
+
+echo "%YELLOW%AKS Cluster %AKS_CLUSTER_NAME%=%CYAN%%AKS_CLUSTER_ID%%NC%"
 
 
 
