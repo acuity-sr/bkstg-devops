@@ -88,7 +88,9 @@ if exist %SP_FNAME% (
   echo "Reusing existing service principal %APP_NAME%-sp"
   node %SCRIPT_ROOT%/bin/decrypt.js %SP_FNAME%
   FOR /F "tokens=* USEBACKQ" %%g IN (`type %SP_FNAME%.decrypted`) do (SET SP_CREDENTIALS=%%g)
-  rm %SP_FNAME%.decrypted
+  call %SP_FNAME%.env
+  del %SP_FNAME%.env
+  del %SP_FNAME%.decrypted
 ) else (
   if( %USE_CASE% == 'create) (
     FOR /F "tokens=* USEBACKQ" %%g IN (
@@ -98,6 +100,8 @@ if exist %SP_FNAME% (
         --name %SERVICE_PRINCIPAL%`) do (SET SP_CREDENTIALS=%%g)
     echo %SP_CREDENTIALS% > %SP_FNAME%
     node %SCRIPT_ROOT%/bin/encrypt.js %SP_FNAME%
+    call %SP_FNAME%.env
+    del %SP_FNAME%.env
   ) else (
     echo "ERROR: Cannot only create ServicePrincipal with USE_CASE='create', not %USE_CASE%"
     exit /b -1

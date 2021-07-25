@@ -49,6 +49,8 @@ FOR /F "tokens=* USEBACKQ" %%g IN (`az aks create \
   --resource-group %RESOURCE_GROUP% \
   --name %AKS_CLUSTER_NAME% \
   --vm-set-type VirtualMachineScaleSets \
+  --service-principal %SP_CLIENT_ID% \
+  --clientSecret %SP_CLIENT_SECRET% \
   --node-count 2 \
   --load-balancer-sku standard \
   --location %REGION_NAME% \
@@ -74,7 +76,26 @@ echo "%YELLOW%AKS Cluster %AKS_CLUSTER_NAME%=%CYAN%%AKS_CLUSTER_ID%%NC%"
 
 
 
+echo "Check cluster connectivity"
+
+az aks get-credentials \
+    --resource-group $RESOURCE_GROUP \
+    --name $AKS_CLUSTER_NAME
+
+kubectl get nodes
+
+echo ""
+  
 
 
+
+rem fetch a list of available names spaces before we create anything.
+kubectl get namespace
+
+rem create the name space
+kubectl create namespace %KUBERNETES_NAMESPACE%
+
+rem fetch list of available namespaces after to confirm
+kubectl get namespace
 
 

@@ -3,6 +3,7 @@
         "RBAC",
         "bkstg",
         "decrpyted",
+        "kubectl",
         "kubernetes",
         "postgres",
         "vnet"

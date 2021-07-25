@@ -286,6 +286,7 @@ echo "\n\n================="
 echo     " Create Workflow "
 echo     "=================\n\n"
 
+call %DEVOPS_SCRIPT_DIR%\pre-reqs.bat
 call %DEVOPS_SCRIPT_DIR%\..\globals.bat
 call %DEVOPS_SCRIPT_DIR%\support\bootstrap.bat
 call %DEVOPS_SCRIPT_DIR%\support\app_build.bat
@@ -307,10 +308,12 @@ echo "\n\n================="
 echo     " Create Workflow "
 echo     "=================\n\n"
 
+
+. ${DEVOPS_SCRIPT_DIR}/pre-reqs.sh
 . ${DEVOPS_SCRIPT_DIR}/../globals.sh
 . ${DEVOPS_SCRIPT_DIR}/support/bootstrap.sh
-# . ${DEVOPS_SCRIPT_DIR}/support/app_build.sh
-# . ${DEVOPS_SCRIPT_DIR}/support/create_infra.sh
+. ${DEVOPS_SCRIPT_DIR}/support/app_build.sh
+. ${DEVOPS_SCRIPT_DIR}/support/create_infra.sh
 # . ${DEVOPS_SCRIPT_DIR}/support/create_kubernetes.sh
 # . ${DEVOPS_SCRIPT_DIR}/app_deploy.sh
 # . ${DEVOPS_SCRIPT_DIR}/support/destroy_all.sh
@@ -335,6 +338,7 @@ echo "\n\n================="
 echo     " Update Workflow "
 echo     "=================\n\n"
 
+call %DEVOPS_SCRIPT_DIR%\pre-reqs.bat
 call %DEVOPS_SCRIPT_DIR%\..\globals.bat
 call %DEVOPS_SCRIPT_DIR%\support\bootstrap.bat
 call %DEVOPS_SCRIPT_DIR%\support\app_build.bat
@@ -356,6 +360,7 @@ echo "\n\n================="
 echo     " Update Workflow "
 echo     "=================\n\n"
 
+. ${DEVOPS_SCRIPT_DIR}/pre-reqs.sh
 . ${DEVOPS_SCRIPT_DIR}/../globals.sh
 . ${DEVOPS_SCRIPT_DIR}/support/bootstrap.sh
 . ${DEVOPS_SCRIPT_DIR}/support/app_build.sh
@@ -386,6 +391,7 @@ echo     " Destroy Workflow "
 echo     "==================\n\n"
 
 
+call %DEVOPS_SCRIPT_DIR%\pre-reqs.bat
 call %DEVOPS_SCRIPT_DIR%\..\globals.bat
 call %DEVOPS_SCRIPT_DIR%\support\bootstrap.bat
 rem call %DEVOPS_SCRIPT_DIR%\support\app_build.bat
@@ -407,6 +413,7 @@ echo "\n\n=================="
 echo     " Destroy Workflow "
 echo     "==================\n\n"
 
+. ${DEVOPS_SCRIPT_DIR}/pre-reqs.sh
 . ${DEVOPS_SCRIPT_DIR}/../globals.sh
 . ${DEVOPS_SCRIPT_DIR}/support/bootstrap.sh
 # . ${DEVOPS_SCRIPT_DIR}/support/app_build.sh
@@ -573,12 +580,15 @@ then
   SUBSCRIPTION_ID=$(az account show --query 'id' --output tsv)
 fi
 
+SUBSCRIPTION_NAME=$(az account show --subscription ${SUBSCRIPTION_ID} --query 'name')
+
 if [[ ${SUBSCRIPTION_ID} == '' ]]
 then
  echo "${RED}ERROR: Subscription ID not found${NC}"
  exit -1
 else
  echo "${YELLOW}SUBSCRIPTION_ID:${CYAN} ${SUBSCRIPTION_ID} ${NC}"
+ echo "${YELLOW}SUBSCRIPTION_NAME:${CYAN} ${SUBSCRIPTION_NAME} ${NC}"
 fi
 ```
 
@@ -768,7 +778,9 @@ if exist %SP_FNAME% (
   echo "Reusing existing service principal %APP_NAME%-sp"
   node %SCRIPT_ROOT%/bin/decrypt.js %SP_FNAME%
   FOR /F "tokens=* USEBACKQ" %%g IN (`type %SP_FNAME%.decrypted`) do (SET SP_CREDENTIALS=%%g)
-  rm %SP_FNAME%.decrypted
+  call %SP_FNAME%.env
+  del %SP_FNAME%.env
+  del %SP_FNAME%.decrypted
 ) else (
   if( %USE_CASE% == 'create) (
     FOR /F "tokens=* USEBACKQ" %%g IN (
@@ -778,6 +790,8 @@ if exist %SP_FNAME% (
         --name %SERVICE_PRINCIPAL%`) do (SET SP_CREDENTIALS=%%g)
     echo %SP_CREDENTIALS% > %SP_FNAME%
     node %SCRIPT_ROOT%/bin/encrypt.js %SP_FNAME%
+    call %SP_FNAME%.env
+    del %SP_FNAME%.env
   ) else (
     echo "ERROR: Cannot only create ServicePrincipal with USE_CASE='create', not %USE_CASE%"
     exit /b -1
@@ -806,15 +820,18 @@ then
   # use previously encrypted credentials. Will prompt for 'password'
   node ${SCRIPT_ROOT}/bin/decrypt.js ${SP_FNAME}
   SP_CREDENTIALS=`cat ${SP_FNAME}.decrypted`
+  . ${SP_FNAME}.env
+  rm ${SP_FNAME}.env
   rm ${SP_FNAME}.decrypted
 else
   SP_CREDENTIALS=$(az ad sp create-for-rbac \
-    --sdk-auth true \
-    --skip-assignment \
+    --sdk-auth \
     --name ${SERVICE_PRINCIPAL})
   echo ${SP_CREDENTIALS} > ${SP_FNAME}
   # encrypt secrets with 'password' for next iteration.
   node ${SCRIPT_ROOT}/bin/encrypt.js ${SP_FNAME}
+  . ${SP_FNAME}.env
+  rm ${SP_FNAME}.env
 fi
 
 SERVICE_PRINCIPAL_ID=$(az ad sp list --query '[].objectId' -o tsv --display-name ${SERVICE_PRINCIPAL})
@@ -830,8 +847,8 @@ fi
 
 ```
 
-
 #### 2.2.5 Bootstrap trailer
+
 - `windows` (win/support/bootstrap.bat)
 
 ```bat win/support/bootstrap.bat
@@ -926,18 +943,14 @@ echo "\n\n******************************"
 echo "2. Provisioning infrastructure"
 echo "******************************\n\n"
 
-
-# check to see if previously created
-SUBNET_ID=$(az network vnet subnet show \
+# create/reuse SUBNET
+subnetExists=$(az network vnet subnet show \
     --resource-group ${RESOURCE_GROUP} \
     --vnet-name ${VNET_NAME} \
     --name ${SUBNET_NAME} \
-    --query id -o tsv)
-
-if [[ $? == 0 ]];
+    --query id -o tsv 2>/dev/null || echo "create")
+if [[ ${subnetExists} == "create" ]]
 then
-  echo "Reusing virtual network '${VNET_NAME}' and subnet '${SUBNET_NAME}'"
-else
   echo "Creating virtual network '${VNET_NAME}' and subnet '${SUBNET_NAME}'"
   TMP=$(az network vnet create \
     --resource-group ${RESOURCE_GROUP} \
@@ -946,15 +959,17 @@ else
     --address-prefixes 10.0.0.0/8 \
     --subnet-name ${SUBNET_NAME} \
     --subnet-prefixes 10.240.0.0/16)
+else
+  echo "Reusing virtual network '${VNET_NAME}' and subnet '${SUBNET_NAME}'"
 fi
 
 SUBNET_ID=$(az network vnet subnet show \
     --resource-group ${RESOURCE_GROUP} \
     --vnet-name ${VNET_NAME} \
     --name ${SUBNET_NAME} \
-    --query id -o tsv)
+    --query 'id' -o tsv)
 
-echo SUBNET_ID=${SUBNET_ID}
+echo "${YELLOW}SUBNET_ID: ${CYAN}${SUBNET_ID}${NC}"
 
 ```
 
@@ -966,12 +981,16 @@ echo SUBNET_ID=${SUBNET_ID}
   - `windows` (globals.bat)
     ```bat globals.bat
     set AKS_CLUSTER_NAME=%APP_NAME%-%STAGE%-aks
+    set KUBERNETES_NAMESPACE=%APP_NAME%
     ```
   - `*nix` (globals.sh)
     ```sh globals.sh
     AKS_CLUSTER_NAME=${APP_NAME}-${STAGE}-aks
+    KUBERNETES_NAMESPACE=${APP_NAME}
     ```
 
+
+Create the AKS cluster
 - `windows` (creates win/support/create_infra.bat)
 
 ```bat win/support/create_infra.bat
@@ -991,6 +1010,8 @@ FOR /F "tokens=* USEBACKQ" %%g IN (`az aks create \
   --resource-group %RESOURCE_GROUP% \
   --name %AKS_CLUSTER_NAME% \
   --vm-set-type VirtualMachineScaleSets \
+  --service-principal %SP_CLIENT_ID% \
+  --clientSecret %SP_CLIENT_SECRET% \
   --node-count 2 \
   --load-balancer-sku standard \
   --location %REGION_NAME% \
@@ -1025,17 +1046,22 @@ VERSION=$(az aks get-versions \
     --output tsv)
 
 # Check to see if the cluster already exists
-AKS_CLUSTER_ID = $(az aks show \
+aksExists=$(az aks show \
   --output tsv \
-  --query ".id" \
-  --name ${AKS_CLUSTER_NAME})
-
-if [[ ${AKS_CLUSTER_ID} == '' ]]
+  --query "id" \
+  --resource-group ${RESOURCE_GROUP} \
+  --name ${AKS_CLUSTER_NAME}  2>/dev/null || echo 'create')
+if [[ ${aksExists} == "create" ]]
 then
-  AKS_CLUSTER =$(az aks create \
+  echo "Creating new AKS Cluster - this can take a while (~3-5 minutes)"
+  start=$(date +"%D %T")
+  echo "Start: ${start}"
+  AKS_CLUSTER=$(az aks create \
     --resource-group ${RESOURCE_GROUP} \
     --name ${AKS_CLUSTER_NAME} \
     --vm-set-type VirtualMachineScaleSets \
+    --service-principal ${SP_CLIENT_ID} \
+    --client-secret ${SP_CLIENT_SECRET} \
     --node-count 2 \
     --load-balancer-sku standard \
     --location ${REGION_NAME} \
@@ -1045,30 +1071,80 @@ then
     --service-cidr 10.2.0.0/24 \
     --dns-service-ip 10.2.0.10 \
     --docker-bridge-address 172.17.0.1/16 \
-    --generate-ssh-keys)
+    --generate-ssh-keys )
+  end=$(date +"%D %T")
+  echo "End: ${end}"
+else
+  echo "Reusing AKS Cluster ${AKS_CLUSTER_NAME}"
+  
   if [[ $? == 0 ]]
   then
     echo "${GREEN}Created new AKS Cluster ${AKS_CLUSTER_NAME}${NC}"
-
-else
-  echo "Reusing AKS Cluster ${AKS_CLUSTER_NAME}"
+  fi
 fi
 # re-initialize CLUSTER_ID, in case we created it.
-AKS_CLUSTER_ID = $(az aks show \
+AKS_CLUSTER_ID=$(az aks show \
   --output tsv \
-  --query ".id" \
-  --name ${AKS_CLUSTER_NAME})
-
-  echo "${YELLOW}AKS Cluster ${AKS_CLUSTER_NAME}=${CYAN}AKS_CLUSTER_ID${NC}"
-) else (
-    echo "${RED}
-)
+  --query "id" \
+  --resource-group ${RESOURCE_GROUP} \
+  --name ${AKS_CLUSTER_NAME} 2>/dev/null || echo "not-found");
+if [[ ${AKS_CLUSTER_ID} == "not-found" ]]
+then
+  echo "${RED}AKS_CLUSTER_ID not found${NC}"
+else
+  echo "${YELLOW}AKS_CLUSTER_NAME: ${CYAN}${AKS_CLUSTER_NAME}${NC}"
+  echo "${YELLOW}AKS_CLUSTER_ID: ${CYAN}${AKS_CLUSTER_ID}${NC}"
+fi
 
 ```
+
+Once the AKS cluster is created, we'll test cluster connectivity
 
 - `windows` (creates win/support/create_infra.bat)
 
 ```bat win/support/create_infra.bat
+
+echo "Check cluster connectivity"
+
+az aks get-credentials \
+    --resource-group $RESOURCE_GROUP \
+    --name $AKS_CLUSTER_NAME
+
+kubectl get nodes
+
+echo ""
+  
+```
+
+- `*nix` (creates nix/support/create_infra.sh)
+
+```sh nix/support/create_infra.sh
+
+echo "\nCheck cluster connectivity"
+
+TMP=$(az aks get-credentials \
+    --resource-group $RESOURCE_GROUP \
+    --name $AKS_CLUSTER_NAME)
+
+kubectl get nodes
+
+echo ""
+```
+
+And then create a kubernetes namespace
+
+- `windows` (creates win/support/create_infra.bat)
+
+```bat win/support/create_infra.bat
+
+rem fetch a list of available names spaces before we create anything.
+kubectl get namespace
+
+rem create the name space
+kubectl create namespace %KUBERNETES_NAMESPACE%
+
+rem fetch list of available namespaces after to confirm
+kubectl get namespace
 
 ```
 
@@ -1076,17 +1152,19 @@ AKS_CLUSTER_ID = $(az aks show \
 
 ```sh nix/support/create_infra.sh
 
-```
+nsExists=$(kubectl get namespace ${KUBERNETES_NAMESPACE} 2>/dev/null || echo "create")
+if [[ $nsExists == 'create' ]]
+then
+  echo "Creating kubernetes namespace '${KUBERNETES_NAMESPACE}'"
+  # create the name space
+  kubectl create namespace ${KUBERNETES_NAMESPACE}
+else
+  echo "Reusing kubernetes namespace '${KUBERNETES_NAMESPACE}'"
+fi
 
-- `windows` (creates win/support/create_infra.bat)
-
-```bat win/support/create_infra.bat
-
-```
-
-- `*nix` (creates nix/support/create_infra.sh)
-
-```sh nix/support/create_infra.sh
+# fetch list of available namespaces after to confirm
+echo "\nAvailable namespaces"
+kubectl get namespace 
 
 ```
 
@@ -1193,7 +1271,7 @@ echo     "***************\n"
 rem FOR /F "tokens=* USEBACKQ" %%g IN (`az aks show \
 rem     --name %AKS_CLUSTER_NAME% \
 rem     --output tsv`) do (SET AKS_CLUSTER_ID=%%g)
-rem 
+rem
 rem if (%AKS_CLUSTER_ID% != '') (
 rem   echo "Initiating delete of AKS cluster %AKS_CLUSTER_NAME%. This might take a while"
 rem   az aks delete --name %AKS_CLUSTER_NAME% --resource-group %RESOURCE_GROUP%
@@ -1217,7 +1295,7 @@ rem )
 
 # if $(az aks show \
 #   --output tsv \
-#   --query "[].id" \
+#   --query "id" \
 #   --resource-group ${RESOURCE_GROUP} \
 #   --name ${AKS_CLUSTER_NAME}) 2>/dev/null
 # then
@@ -1250,7 +1328,7 @@ rem     --resource-group %RESOURCE_GROUP% \
 rem     --vnet-name %VNET_NAME% \
 rem     --name %SUBNET_NAME% \
 rem     --query id -o tsv`) do (SET SUBNET_ID=%%g)
-rem 
+rem
 rem if (%SUBNET_ID% != '') (
 rem   echo "deleting subnet %SUBNET_NAME%"
 rem   az network vnet subnet delete \
@@ -1294,7 +1372,7 @@ rem )
 #     --name ${SUBNET_NAME} \
 #     --vnet-name ${VNET_NAME} \
 #     --resource-group ${RESOURCE_GROUP} \
-#     --subscription ${SUBSCRIPTION_ID}) 
+#     --subscription ${SUBSCRIPTION_ID})
 #   if [[ $? == 0 ]]
 #   then
 #     echo "deleting virtual network ${VNET_NAME}"
@@ -1341,8 +1419,13 @@ rm ${SP_FNAME}
 # echo "delete AD Application  ${APP_NAME} (${APP_ID})"
 # az ad app delete --id ${APP_ID}
 echo "${RED}delete ${YELLOW}RESOURCE_GROUP ${CYAN}${RESOURCE_GROUP} (${RESOURCE_GROUP}_ID)${NC}"
+echo "this might take a few minutes..."
+start=$(date +"%D %T")
+echo "Start: ${start}"  
 az group delete --resource-group ${RESOURCE_GROUP}
-
+end=$(date +"%D %T")
+echo "End: ${end}"
+  
 echo "\n\n${GREEN}Destroyed all resources successfully${NC}"
 ```
 
@@ -1350,9 +1433,9 @@ echo "\n\n${GREEN}Destroyed all resources successfully${NC}"
 
 When developing the script, it's sometimes useful to know id's and the like of all existing resources. This provides a simple way to use the globals.{bat,sh} to find all resources
 
-- `windows` (bat/read.bat)
+- `windows` (win/read.bat)
 
-```bat bat/read.bat
+```bat win/read.bat
 
 ```
 

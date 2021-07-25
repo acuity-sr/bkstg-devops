@@ -1,9 +1,19 @@
 #!/usr/local/bin node
 
+/**
+ * Hacky way to encrypting some secrets to speed development of POC.
+ *
+ * Please, PLEASE do something - anything - so this does not make it to production.
+ * With that, this poor soul will continue on with the hack...
+ *
+ */
+
 const crypto = require("crypto");
 const fs = require("fs");
 const read = require("./read");
+const { saveEnv } = require("./save-env");
 
+console.log(saveEnv);
 function main(fname, password) {
   const text = fs.readFileSync(fname, "utf8");
   const algorithm = "aes-256-ctr";
@@ -25,6 +35,7 @@ function main(fname, password) {
     }),
     "utf8"
   );
+  saveEnv(`${fname}.env`, JSON.parse(text));
   console.log(`Successfully encrypted '${fname}'`);
 }
 

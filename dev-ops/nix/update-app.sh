@@ -7,6 +7,7 @@ echo "\n\n================="
 echo     " Update Workflow "
 echo     "=================\n\n"
 
+. ${DEVOPS_SCRIPT_DIR}/pre-reqs.sh
 . ${DEVOPS_SCRIPT_DIR}/../globals.sh
 . ${DEVOPS_SCRIPT_DIR}/support/bootstrap.sh
 . ${DEVOPS_SCRIPT_DIR}/support/app_build.sh

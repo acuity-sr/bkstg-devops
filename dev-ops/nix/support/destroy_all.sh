@@ -10,7 +10,7 @@ echo     "***************\n"
 
 # if $(az aks show \
 #   --output tsv \
-#   --query "[].id" \
+#   --query "id" \
 #   --resource-group ${RESOURCE_GROUP} \
 #   --name ${AKS_CLUSTER_NAME}) 2>/dev/null
 # then
@@ -43,7 +43,7 @@ echo     "***************\n"
 #     --name ${SUBNET_NAME} \
 #     --vnet-name ${VNET_NAME} \
 #     --resource-group ${RESOURCE_GROUP} \
-#     --subscription ${SUBSCRIPTION_ID}) 
+#     --subscription ${SUBSCRIPTION_ID})
 #   if [[ $? == 0 ]]
 #   then
 #     echo "deleting virtual network ${VNET_NAME}"
@@ -72,7 +72,12 @@ rm ${SP_FNAME}
 # echo "delete AD Application  ${APP_NAME} (${APP_ID})"
 # az ad app delete --id ${APP_ID}
 echo "${RED}delete ${YELLOW}RESOURCE_GROUP ${CYAN}${RESOURCE_GROUP} (${RESOURCE_GROUP}_ID)${NC}"
+echo "this might take a few minutes..."
+start=$(date +"%D %T")
+echo "Start: ${start}"  
 az group delete --resource-group ${RESOURCE_GROUP}
-
+end=$(date +"%D %T")
+echo "End: ${end}"
+  
 echo "\n\n${GREEN}Destroyed all resources successfully${NC}"
 

@@ -9,6 +9,7 @@ echo "\n\n================="
 echo     " Create Workflow "
 echo     "=================\n\n"
 
+call %DEVOPS_SCRIPT_DIR%\pre-reqs.bat
 call %DEVOPS_SCRIPT_DIR%\..\globals.bat
 call %DEVOPS_SCRIPT_DIR%\support\bootstrap.bat
 call %DEVOPS_SCRIPT_DIR%\support\app_build.bat

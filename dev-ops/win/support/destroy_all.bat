@@ -7,7 +7,7 @@ echo     "***************\n"
 rem FOR /F "tokens=* USEBACKQ" %%g IN (`az aks show \
 rem     --name %AKS_CLUSTER_NAME% \
 rem     --output tsv`) do (SET AKS_CLUSTER_ID=%%g)
-rem 
+rem
 rem if (%AKS_CLUSTER_ID% != '') (
 rem   echo "Initiating delete of AKS cluster %AKS_CLUSTER_NAME%. This might take a while"
 rem   az aks delete --name %AKS_CLUSTER_NAME% --resource-group %RESOURCE_GROUP%
@@ -32,7 +32,7 @@ rem     --resource-group %RESOURCE_GROUP% \
 rem     --vnet-name %VNET_NAME% \
 rem     --name %SUBNET_NAME% \
 rem     --query id -o tsv`) do (SET SUBNET_ID=%%g)
-rem 
+rem
 rem if (%SUBNET_ID% != '') (
 rem   echo "deleting subnet %SUBNET_NAME%"
 rem   az network vnet subnet delete \

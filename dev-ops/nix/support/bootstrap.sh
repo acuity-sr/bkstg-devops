@@ -18,12 +18,15 @@ then
   SUBSCRIPTION_ID=$(az account show --query 'id' --output tsv)
 fi
 
+SUBSCRIPTION_NAME=$(az account show --subscription ${SUBSCRIPTION_ID} --query 'name')
+
 if [[ ${SUBSCRIPTION_ID} == '' ]]
 then
  echo "${RED}ERROR: Subscription ID not found${NC}"
  exit -1
 else
  echo "${YELLOW}SUBSCRIPTION_ID:${CYAN} ${SUBSCRIPTION_ID} ${NC}"
+ echo "${YELLOW}SUBSCRIPTION_NAME:${CYAN} ${SUBSCRIPTION_NAME} ${NC}"
 fi
 
 
@@ -96,15 +99,18 @@ then
   # use previously encrypted credentials. Will prompt for 'password'
   node ${SCRIPT_ROOT}/bin/decrypt.js ${SP_FNAME}
   SP_CREDENTIALS=`cat ${SP_FNAME}.decrypted`
+  . ${SP_FNAME}.env
+  rm ${SP_FNAME}.env
   rm ${SP_FNAME}.decrypted
 else
   SP_CREDENTIALS=$(az ad sp create-for-rbac \
-    --sdk-auth true \
-    --skip-assignment \
+    --sdk-auth \
     --name ${SERVICE_PRINCIPAL})
   echo ${SP_CREDENTIALS} > ${SP_FNAME}
   # encrypt secrets with 'password' for next iteration.
   node ${SCRIPT_ROOT}/bin/encrypt.js ${SP_FNAME}
+  . ${SP_FNAME}.env
+  rm ${SP_FNAME}.env
 fi
 
 SERVICE_PRINCIPAL_ID=$(az ad sp list --query '[].objectId' -o tsv --display-name ${SERVICE_PRINCIPAL})

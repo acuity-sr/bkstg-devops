@@ -1,7 +1,16 @@
 #!/usr/local/bin node
+/**
+ * Hacky way to encrypting some secrets to speed development of POC.
+ *
+ * Please, PLEASE do something - anything - so this does not make it to production.
+ * With that, this poor soul will continue on with the hack...
+ *
+ */
+
 const crypto = require("crypto");
 const fs = require("fs");
 const read = require("./read");
+const { saveEnv } = require("./save-env");
 
 function main(fname, password) {
   const hash = JSON.parse(fs.readFileSync(fname, "utf8"));
@@ -22,6 +31,7 @@ function main(fname, password) {
   ]);
   const text = decrpyted.toString();
   fs.writeFileSync(`${fname}.decrypted`, text, "utf8");
+  saveEnv(`${fname}.env`, JSON.parse(text));
   console.log(`Successfully decrypted '${fname}.decrypted'`);
 }
 
@@ -36,5 +46,4 @@ if (require.main === module) {
     },
     (password) => main(fname, password)
   );
-
 }

@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "description": "Dev-ops flow for Acuity backstage",
   "scripts": {
-    "gen": "rimraf scripts && doable README.md scripts && doable docs/pre-reqs.md scripts && node bin/cp.js && node scripts/bin/chmod.js",
+    "gen": "rimraf dev-ops && doable README.md dev-ops && doable docs/pre-reqs.md dev-ops && node bin/cp.js dev-ops && node dev-ops/bin/chmod.js dev-ops",
+    "create": "node ./dev-ops/bin/run.js create",
+    "read": "node ./dev-ops/bin/run.js read",
+    "destroy": "node ./dev-ops/bin/run.js destroy",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
