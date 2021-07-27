@@ -6,6 +6,7 @@
         "kubectl",
         "kubernetes",
         "postgres",
+        "rgba",
         "vnet"
     ]
 }

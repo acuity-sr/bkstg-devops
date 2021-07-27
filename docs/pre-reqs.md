@@ -10,7 +10,7 @@
   - [5. kubectx & kubens](#5-kubectx--kubens)
   - [6. helm](#6-helm)
   - [7. github-cli](#7-github-cli)
-  - [Checklist](#checklist)
+  - [Checklist (scripts)](#checklist-scripts)
     - [`windows` (create win/pre-reqs.bat)](#windows-create-winpre-reqsbat)
     - [`*nix` (creates nix/pre-reqs.sh)](#nix-creates-nixpre-reqssh)
 

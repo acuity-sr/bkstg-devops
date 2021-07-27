@@ -3,7 +3,15 @@
   "version": "1.0.0",
   "description": "Dev-ops flow for Acuity backstage",
   "scripts": {
-    "gen": "rimraf dev-ops && doable README.md dev-ops && doable docs/pre-reqs.md dev-ops && node bin/cp.js dev-ops && node dev-ops/bin/chmod.js dev-ops",
+    "gen": "rimraf dev-ops  && npm run doctoc_ && npm run gen_ && npm run cp-files && npm run file-permissions && npm run mermaid",
+    "doctoc_": "doctoc README.md && doctoc docs/pre-reqs.md",
+    "gen_": "doable README.md dev-ops &&  doable docs/pre-reqs.md dev-ops",
+    "cp-files": "node bin/cp.js dev-ops",
+    "file-permissions": "node dev-ops/bin/chmod.js dev-ops",
+    "mermaid": "npm run mermaid-cicd && npm run mermaid-cicd-detail && npm run mermaid-lifecycle",
+    "mermaid-cicd": "mmdc -i docs/mermaid/CI-CD-Workflow-high-level.mmd -o docs/images/CI-CD-Workflow-high-level.png -w 2000",
+    "mermaid-cicd-detail": "mmdc -i docs/mermaid/CI-CD-Workflow-detailed.mmd -o docs/images/CI-CD-Workflow-detailed.png -w 2000",
+    "mermaid-lifecycle": "mmdc -i docs/mermaid/infra-lifecycle.mmd -o docs/images/infra-lifecycle.png -w 2000",
     "create": "node ./dev-ops/bin/run.js create",
     "read": "node ./dev-ops/bin/run.js read",
     "destroy": "node ./dev-ops/bin/run.js destroy",
@@ -19,6 +27,7 @@
   "author": "Shishir Ramam",
   "license": "ISC",
   "dependencies": {
+    "@mermaid-js/mermaid-cli": "^8.11.0",
     "doable": "github:acuity-sr/doable",
     "doctoc": "^2.0.1"
   },

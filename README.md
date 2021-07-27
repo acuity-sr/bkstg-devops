@@ -4,6 +4,12 @@
 - [Azure Kubernetes DevOps](#azure-kubernetes-devops)
   - [0.1 Pre-requisites](#01-pre-requisites)
   - [0.2 Create the backstage-app](#02-create-the-backstage-app)
+    - [Creating the backstage app](#creating-the-backstage-app)
+    - [Setup and initialize git repository](#setup-and-initialize-git-repository)
+    - [Customize & Adapt the app](#customize--adapt-the-app)
+      - [Customizations](#customizations)
+      - [Additions](#additions)
+    - [0.2.2 Configuring the backstage app](#022-configuring-the-backstage-app)
   - [Background](#background)
     - [B.1 Cattle Not Pets](#b1-cattle-not-pets)
     - [B.2 Azure Management Scope](#b2-azure-management-scope)
@@ -11,7 +17,7 @@
     - [B.4 Infrastructure as code](#b4-infrastructure-as-code)
       - [B.4.1 Git-ops/Infrastructure Lifecycle](#b41-git-opsinfrastructure-lifecycle)
       - [B.4.2 GitOps or not to GitOps? That is the question.](#b42-gitops-or-not-to-gitops-that-is-the-question)
-    - [Infrastructure Lifecycle](#infrastructure-lifecycle)
+    - [B.5 Infrastructure Lifecycle](#b5-infrastructure-lifecycle)
   - [Infrastructure Design](#infrastructure-design)
     - [Infrastructure/Configuration inventory](#infrastructureconfiguration-inventory)
     - [Automation](#automation)
@@ -26,12 +32,11 @@
       - [2.2.2 Resource Group](#222-resource-group)
       - [2.2.3 Azure Active Directory Application](#223-azure-active-directory-application)
       - [2.2.4 Service Principal](#224-service-principal)
+      - [2.2.5 Bootstrap trailer](#225-bootstrap-trailer)
     - [2.3 Build](#23-build)
     - [2.4 Infrastructure](#24-infrastructure)
       - [2.4.1 Networking](#241-networking)
-        - [Create](#create)
-        - [Delete](#delete)
-      - [2.4.2 Provision AKS](#242-provision-aks)
+      - [2.4.2 Azure Kubernetes Service (AKS)](#242-azure-kubernetes-service-aks)
     - [2.5. Configure Kubernetes](#25-configure-kubernetes)
       - [2.5.1 Create](#251-create)
       - [2.5.2 Api](#252-api)
@@ -42,6 +47,10 @@
         - [2.5.3.2 Service](#2532-service)
     - [2.6. Deploy](#26-deploy)
     - [2.7 Destroy](#27-destroy)
+      - [AKS (destroy)](#aks-destroy)
+      - [Networking (destroy)](#networking-destroy)
+      - [Bootstrap (destroy)](#bootstrap-destroy)
+    - [2.8 Read](#28-read)
   - [TODO](#todo)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -72,11 +81,18 @@ Welcome back!
 This is likely only needed if restarting the project from scratch. In all likelihood, you are working with an already created app and a `git clone` of
 the repo.
 
+### Creating the backstage app 
 For the sake of completeness, if you need to start from scratch, run the following command to create a new backstage-app.
 
-NOTE: If in doubt, select an SQLITE database. We will presume that you selected the postgres database for deployment purposes.
-
-If you are unsure, it's ok to generate the application with a sqlite datastore. Presuming we called the app `bkstg`, this creates a mono-repo with two npm "packages"
+```null
+# create the backstage app
+npx @backstage/create-app
+# answer the questions.
+# - we'll call the app `bkstg` 
+# - Use `sqLite` if in doubt.
+# - Production will use `postgres`
+```
+Creates a directory structure that looks like this.
 
 ```null
 bkstg
@@ -85,13 +101,111 @@ bkstg
     └── backend   # the api server - this connects to a database.
 ```
 
-`npx @backstage/create-app`
-
-This step does a `yarn install` - which takes a bit to complete.
+This step also performs a `yarn install` - which takes a bit to complete.
 
 ![time sink](./docs/images/time-passing.gif)
 
 If you find yourself contemplating the end-of-time, instead consider jumping ahead to the next section.
+
+### Setup and initialize git repository
+Once the `yarn install` is completed, we'll configure a git repo in there
+
+- `windows` (win/create_bkstg.bat)
+```bat win/create_bkstg.bat
+cd bkstg
+git init
+echo node_modules >> .gitignore
+echo dist >> .gitignore
+git add .
+git commit -m "feat: initial commit"
+```
+
+- `*nix` (nix/create_bkstg.sh)
+```sh nix/create_bkstg.sh
+cd bkstg
+git init
+echo node_modules >> .gitignore
+echo dist >> .gitignore
+git add .
+git commit -m "feat: initial commit"
+```
+
+### Customize & Adapt the app
+Customizing the backstage app requires two things: 
+1. Customizing files created by the `npx @backstage/create-app` command.
+2. Add files to enable the workflow needed. 
+
+
+#### Customizations
+The customizations are hard to automate, so we list them below and require you to 
+make them manually.
+
+   - `bkstg/app-config.yml`
+```diff
+@@ -1,9 +1,9 @@
+ app:
+-  title: Scaffolded Backstage App
++  title: Acuity Backstage
+   baseUrl: http://localhost:3000
+
+ organization:
+-  name: My Company
++  name: Acuity
+```
+  - `bkstg/package.json`
+```diff
+@@ -1,5 +1,5 @@
+ {
+-  "name": "root",
++  "name": "@acuity-sr/bkstg-monorepo",
+   "version": "1.0.0",
+   "private": true,
+```
+
+  - `bkstg/packages/app/package.json`
+```diff
+@@ -1,5 +1,5 @@
+ {
+-  "name": "app",
++  "name": "@acuity-sr/bkstg-ui",
+   "version": "0.0.0",
+   "private": true,
+   "bundled": true,
+```
+
+  - `bkstg/packages/backend/package.json`
+```diff
+@@ -1,5 +1,5 @@
+ {
+-  "name": "backend",
++  "name": "@acuity-sr/bkstg-api",
+   "version": "0.0.0",
+   "main": "dist/index.cjs.js",
+   "types": "src/index.ts",
+@@ -17,7 +17,7 @@
+     "migrate:create": "knex migrate:make -x ts"
+   },
+   "dependencies": {
+-    "app": "0.0.0",
++    "@acuity-sr/bkstg-ui": "0.0.0",
+```
+
+#### Additions
+````Docker bkstg/app/DockerFile
+````
+
+### 0.2.2 Configuring the backstage app
+The backstage app as created and used per documentation, does not utilize npm versions
+or an npm-repository. Since we want to model best production behavior, we'll publish
+both the `app`/`backend` as backstage calls them, but `ui`/`api` as we call them in this
+document as npm modules to the github npm package registry.
+
+We'll use github actions to run a CI process. 
+We'll also use github actions to implement a CD process based on the rest of this document.
+
+Before we can do that, we need to configure the default backstage repo to ensure all of this works.
+
+
 
 ## Background
 
@@ -175,11 +289,17 @@ to treat our infrastructure as "cattle-not-pets".
 The sequence diagram below pulls together the various actors into a single inter-dependent flow
 and layers on the various operations.
 
-### Infrastructure Lifecycle
+### B.5 Infrastructure Lifecycle
 
-![Infrastructure Lifecycle](./docs/infra-lifecycle/infra-lifecycle.png)
+![Infrastructure Lifecycle](./docs/images/infra-lifecycle.png)
 
 Note that while we indicate the notion of updates to the kubernetes cluster and the underlying infrastructure, this is currently not addressed as part of this exercise.
+
+### B.6 Continuous Integration & Continuous Delivery (CI/CD)
+CI and CD are the buzz words of modern software. While some specifics might vary by project, organization or even team, the core principals can be generalized.
+This is useful in ensuring all anticipated use-cases are tackled
+
+The 
 
 ## Infrastructure Design
 
