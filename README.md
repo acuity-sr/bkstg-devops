@@ -293,13 +293,24 @@ and layers on the various operations.
 
 ![Infrastructure Lifecycle](./docs/images/infra-lifecycle.png)
 
-Note that while we indicate the notion of updates to the kubernetes cluster and the underlying infrastructure, this is currently not addressed as part of this exercise.
+In each segment, we highlight the portions of the infrastructure that are impacted. 
+We do not yet address `roll-back` scenarios.
+
 
 ### B.6 Continuous Integration & Continuous Delivery (CI/CD)
 CI and CD are the buzz words of modern software. While some specifics might vary by project, organization or even team, the core principals can be generalized.
 This is useful in ensuring all anticipated use-cases are tackled
 
-The 
+- A high-level CI/CD flow is presented in the image below
+
+![High level CI/CD flow](./docs/images/CI-CD-Workflow-high-level.png)
+
+- A detailed breakdown of the various tasks involved
+
+![CI/CD flow details](./docs/images/CI-CD-Workflow-detailed.png)
+
+Note that the `github-actions` block is meant to encapsulate which script a particular piece of the workflow run within. The dotted lines represent [github-action triggers](https://docs.github.com/en/actions/reference/events-that-trigger-workflows)
+
 
 ## Infrastructure Design
 
