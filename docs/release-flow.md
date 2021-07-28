@@ -25,6 +25,7 @@ upstream - meaning the lower layers upon instantiation/effecting-change, have
 config information that a higher layer likely needs. 
 
 The data flow paths are illustrated in the following state diagram
+
 ![Config Management](./images/config-mgmt.png)
 
 ## Kubernetes updating ConfigMap/Secrets
@@ -59,4 +60,5 @@ for heavier dependencies like `js-yaml`.
 
 
 Using configMap simplifies the config management problem to the one below:
+
 ![ConfigMap based config-management](./images/configMap.png)
