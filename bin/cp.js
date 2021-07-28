@@ -1,4 +1,5 @@
 const fs = require("fs");
+const path = require("path");
 
 /** copies files to generated location ('scripts'), scripts directory to have zero dependencies */
 function main(subDir) {
@@ -9,6 +10,7 @@ function main(subDir) {
     "read.js",
     "mute-stream.js",
     "chmod.js",
+    "configMapVersion.js",
     "save-env.js",
     "run.js",
   ].forEach((f) => {
@@ -18,5 +20,14 @@ function main(subDir) {
 
 if (require.main === module) {
   const subDir = process.argv[2];
-  main(subDir);
+  if (subDir && subDir !== "-h" && subDir !== "--help") {
+    main(subDir);
+  } else {
+    console.log(
+      [
+        `\ncopies 'bin/*.js' to ${subDir}/bin/.`,
+        `  Usage:  node ${path.basename(process.argv[1])} <subDir>`,
+      ].join("\n")
+    );
+  }
 }

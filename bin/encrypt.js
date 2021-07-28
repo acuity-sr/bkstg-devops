@@ -13,7 +13,6 @@ const fs = require("fs");
 const read = require("./read");
 const { saveEnv } = require("./save-env");
 
-console.log(saveEnv);
 function main(fname, password) {
   const text = fs.readFileSync(fname, "utf8");
   const algorithm = "aes-256-ctr";

@@ -18,6 +18,7 @@
       - [B.4.1 Git-ops/Infrastructure Lifecycle](#b41-git-opsinfrastructure-lifecycle)
       - [B.4.2 GitOps or not to GitOps? That is the question.](#b42-gitops-or-not-to-gitops-that-is-the-question)
     - [B.5 Infrastructure Lifecycle](#b5-infrastructure-lifecycle)
+    - [B.6 Continuous Integration & Continuous Delivery (CI/CD)](#b6-continuous-integration--continuous-delivery-cicd)
   - [Infrastructure Design](#infrastructure-design)
     - [Infrastructure/Configuration inventory](#infrastructureconfiguration-inventory)
     - [Automation](#automation)
@@ -141,7 +142,10 @@ The customizations are hard to automate, so we list them below and require you t
 make them manually.
 
    - `bkstg/app-config.yml`
-```diff
+
+```diff bkstg/patch.txt
+--- a/app-config.yml
++++ b/app-config.yml
 @@ -1,9 +1,9 @@
  app:
 -  title: Scaffolded Backstage App
@@ -153,7 +157,10 @@ make them manually.
 +  name: Acuity
 ```
   - `bkstg/package.json`
-```diff
+
+```diff bkstg/patch.txt
+--- a/package.json
++++ b/package.json
 @@ -1,5 +1,5 @@
  {
 -  "name": "root",
@@ -163,7 +170,10 @@ make them manually.
 ```
 
   - `bkstg/packages/app/package.json`
-```diff
+
+```diff bkstg/patch.txt
+--- a/packages/app/package.json
++++ b/packages/app/package.json
 @@ -1,5 +1,5 @@
  {
 -  "name": "app",
@@ -174,7 +184,10 @@ make them manually.
 ```
 
   - `bkstg/packages/backend/package.json`
-```diff
+  
+```diff bkstg/patch.txt
+--- a/packages/backend/package.json
++++ b/packages/backend/package.json
 @@ -1,5 +1,5 @@
  {
 -  "name": "backend",
@@ -311,6 +324,13 @@ This is useful in ensuring all anticipated use-cases are tackled
 
 Note that the `github-actions` block is meant to encapsulate which script a particular piece of the workflow run within. The dotted lines represent [github-action triggers](https://docs.github.com/en/actions/reference/events-that-trigger-workflows)
 
+These flows lead us to create 4 different workflow files:
+- `CI.yml`
+- `release-development.yml`
+- `release-production.yml`
+- `CD.yml`
+
+These files have to be added to our application
 
 ## Infrastructure Design
 
