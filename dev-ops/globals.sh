@@ -1,9 +1,13 @@
 #!/usr/bin/env sh
 # required
 GH_ORG=acuity-sr
-GH_REPO=acuity-bkstg
-REGION_NAME=eastus
-STAGE=dev
+GH_REPO=bkstg
+
+RELEASE=${RELEASE:?}
+STAGE=${STAGE:-'dev'}
+REGION_NAME=${REGION_NAME:-'eastus'}
+
+echo "${RELEASE} ${STAGE} ${REGION_NAME}"
 
 # optional
 SUBSCRIPTION_ID=d8f43804-1ed0-4f0d-b26d-77e8e11e86fd
@@ -50,3 +54,7 @@ VNET_NAME=${APP_NAME}-aks-vnet
 AKS_CLUSTER_NAME=${APP_NAME}-${STAGE}-aks
 KUBERNETES_NAMESPACE=${APP_NAME}
 
+# ACR_NAME must conform to '^[a-zA-Z0-9]*$' and length > 5
+# since we only have one per RG, we'll just call it acr and move along.
+# ACR_NAME=${APP_NAME}-${STAGE}-acr
+ACR_NAME=AcuityBkstgAcrSR

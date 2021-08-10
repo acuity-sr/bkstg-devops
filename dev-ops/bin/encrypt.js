@@ -13,7 +13,6 @@ const fs = require("fs");
 const read = require("./read");
 const { saveEnv } = require("./save-env");
 
-console.log(saveEnv);
 function main(fname, password) {
   const text = fs.readFileSync(fname, "utf8");
   const algorithm = "aes-256-ctr";
@@ -41,13 +40,18 @@ function main(fname, password) {
 
 if (require.main === module) {
   const fname = process.argv[2];
-  read(
-    {
-      prompt: `Encrypting file '${fname}'\npassword:`,
-      silent: true,
-      replace: "*",
-      default: "",
-    },
-    (password) => main(fname, password)
-  );
+  const envPassword = process.env.ACUITY_SECRET;
+  if (envPassword) {
+    main(fname, envPassword);
+  } else {
+    read(
+      {
+        prompt: `Encrypting file '${fname}'\npassword:`,
+        silent: true,
+        replace: "*",
+        default: "",
+      },
+      (password) => main(fname, password)
+    );
+  }
 }

@@ -423,9 +423,13 @@ and invoke them with proper human review.
 Defines the workflow to implement the "Creation" use-case.
 The script creates/reuses any necessary resources.
 
-- `windows` (creates win/create.bat)
+- `windows` (win/create.bat)
 
 ```bat win/create.bat
+
+rem command line parameters
+set STAGE=%1
+set RELEASE=%2
 
 rem initialize script dir (via https://stackoverflow.com/a/36351656)
 pushd %~dp0
@@ -448,9 +452,13 @@ rem call %DEVOPS_SCRIPT_DIR%\support\destroy_all.bat
 
 ```
 
-- `*nix` (creates nix/create.sh)
+- `*nix` (nix/create.sh)
 
 ```sh nix/create.sh
+
+# command line parameters
+STAGE=${1}
+RELEASE=${2}
 
 DEVOPS_SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
@@ -475,9 +483,13 @@ echo     "=================\n\n"
 
 Updates the "application"
 
-- `windows` (creates win/update-app.bat)
+- `windows` (win/update-app.bat)
 
 ```bat win/update-app.bat
+
+rem command line parameters
+set STAGE=%1
+set RELEASE=%2
 
 rem initialize script dir (via https://stackoverflow.com/a/36351656)
 pushd %~dp0
@@ -500,9 +512,13 @@ rem call %DEVOPS_SCRIPT_DIR%\support\destroy_all.bat
 
 ```
 
-- `*nix` (creates nix/update-app.sh)
+- `*nix` (nix/update-app.sh)
 
 ```sh nix/update-app.sh
+
+# command line parameters
+STAGE=${1}
+RELEASE=${2}
 
 DEVOPS_SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
@@ -527,9 +543,13 @@ echo     "=================\n\n"
 Destroys all provisioned infrastructure, including the "Service Principal" and "App" created during the bootstrap.
 This is a kill-switch - meant to be used in development to shut down resources to save idle-billing of cloud resources.
 
-- `windows` (creates win/destroy.bat)
+- `windows` (win/destroy.bat)
 
 ```bat win/destroy.bat
+
+rem command line parameters
+set STAGE=%1
+set RELEASE="Don't care"
 
 rem initialize script dir (via https://stackoverflow.com/a/36351656)
 pushd %~dp0
@@ -553,9 +573,13 @@ call %DEVOPS_SCRIPT_DIR%\support\destroy_all.bat
 
 ```
 
-- `*nix` (creates nix/destroy.sh)
+- `*nix` (nix/destroy.sh)
 
 ```sh nix/destroy.sh
+
+# command line parameters
+STAGE=${1}
+RELEASE="Don't care"
 
 DEVOPS_SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
@@ -582,15 +606,20 @@ The support scripts needed to enable the life-cycle scripts of [section 1](#life
 ### 2.1 Globals
 
 The minimal required configuration that is provided by the owner of the system.
+There is only one variable that is assumed to exist external to these scripts
 
 - `windows` (create globals.bat)
 
 ```bat globals.bat
-rem required
+rem required - hard coded per repo/project
 set GH_ORG=acuity-sr
 set GH_REPO=acuity-bkstg
-set REGION_NAME=eastus
-set STAGE=dev
+
+rem also required, but can be set in a calling script,
+rem allowing a CD script to customize these if needed.
+set /p RELEASE=${RELEASE?}
+set /p STAGE=${STAGE:?'dev'}
+set /p REGION_NAME=${REGION_NAME:?'eastus'}
 
 rem optional
 set SUBSCRIPTION_ID=d8f43804-1ed0-4f0d-b26d-77e8e11e86fd
@@ -599,6 +628,7 @@ rem Customize APP_NAME to fit your needs.
 rem It's used as a prefix for all resources
 rem (even the ResourceGroup) created.
 set APP_NAME=%GH_REPO%-%STAGE%-%REGION%
+set APP=%GH_REPO%
 
 pushd %~dp0
 set SCRIPT_ROOT=%CD%
@@ -616,16 +646,26 @@ set PURPLE="[35m [35m"
 set CYAN="[36m [36m"
 rem NO_COLOR
 set NC="[0m"
+
+rem "generated" globals
 ```
 
 - `*nix` (create globals.sh)
 
 ```sh globals.sh
-# required
+# required - hard coded per repo/project
 GH_ORG=acuity-sr
 GH_REPO=acuity-bkstg
-REGION_NAME=eastus
-STAGE=dev
+
+# also required, but can be set in a calling script,
+# allowing a CD script to customize these if needed.
+
+# RELEASE & STAGE are specified by CD script.
+# modify to allow default values if that makes sense.
+
+RELEASE=${RELEASE:?} # error if not specified globally.
+STAGE=${STAGE:?}     # error if not specified globally.
+REGION_NAME=${REGION_NAME:-'eastus'} # default = 'eastus'
 
 # optional
 SUBSCRIPTION_ID=d8f43804-1ed0-4f0d-b26d-77e8e11e86fd
@@ -634,6 +674,7 @@ SUBSCRIPTION_ID=d8f43804-1ed0-4f0d-b26d-77e8e11e86fd
 # It's used as a prefix for all resources
 # (even the ResourceGroup) created.
 APP_NAME=${GH_REPO}-${STAGE}-${REGION_NAME}
+APP=${GH_REPO}
 
 
 # debug controls
@@ -656,6 +697,9 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 # NO_COLOR
 NC="\033[0m"
+
+# "generated" globals
+
 ```
 
 ### 2.2 Bootstrap
@@ -683,7 +727,7 @@ The subscription ID can vary by login. While it's possible (even preferable) to 
 
 The bootstrap script automates it's extraction - after you have logged via the azure CLI.
 
-- `windows` (creates win/support/bootstrap.bat)
+- `windows` (win/support/bootstrap.bat)
 
 ```bat win/support/bootstrap.bat
 
@@ -709,7 +753,7 @@ if (%SUBSCRIPTION_ID% == '') (
 )
 ```
 
-- `*nix` (creates nix/support/bootstrap.sh)
+- `*nix` (nix/support/bootstrap.sh)
 
 ```sh nix/support/bootstrap.sh
 
@@ -757,7 +801,7 @@ fi
     RESOURCE_GROUP=${APP_NAME}-rg
     ```
 
-- `windows` (appends to win/support/bootstrap.bat)
+- `windows` (win/support/bootstrap.bat)
 
 ```bat win/support/bootstrap.bat
 
@@ -791,7 +835,7 @@ if (%RESOURCE_GROUP_ID% == '') (
 )
 ```
 
-- `*nix` (appends to nix/support/bootstrap.sh)
+- `*nix` (nix/support/bootstrap.sh)
 
 ```sh nix/support/bootstrap.sh
 
@@ -831,7 +875,7 @@ fi
 We need a service principal to generate credentials for automation to access necessary resources.
 However, before you create a service principal, you need to create an “application” in Azure Active Directory. You can think of this as an identity for the application that needs access to your Azure resources.
 
-- `windows` (appends to win/support/bootstrap.bat)
+- `windows` (win/support/bootstrap.bat)
 
 ```bat win/support/bootstrap.bat
 
@@ -862,7 +906,7 @@ if (%APP_ID% == '') (
 )
 ```
 
-- `*nix` (appends to nix/support/bootstrap.sh)
+- `*nix` (nix/support/bootstrap.sh)
 
 ```sh nix/support/bootstrap.sh
 
@@ -918,7 +962,7 @@ Extract resource names into globals.{sh|bat} to allow use in other lifecycle met
   SP_FNAME=./${SERVICE_PRINCIPAL}-creds.dat
   ```
 
-- `windows` (appends to win/support/bootstrap.bat)
+- `windows` (win/support/bootstrap.bat)
 
 ```bat win/support/bootstrap.bat
 
@@ -959,7 +1003,7 @@ if (%SERVICE_PRINCIPAL_ID% == '') (
 
 ```
 
-- `*nix` (appends to nix/support/bootstrap.sh)
+- `*nix` (nix/support/bootstrap.sh)
 
 ```sh nix/support/bootstrap.sh
 
@@ -1012,25 +1056,12 @@ echo "\n\n%GREEN%Bootstrap successful%NC%"
 echo "\n\n${GREEN}Bootstrap successful${NC}"
 ```
 
-### 2.3 Build
 
-- `windows` (creates win/support/app_build.bat)
-
-```bat win/support/app_build.bat
-
-```
-
-- `*nix` (creates nix/support/app_build.sh)
-
-```sh nix/support/app_build.sh
-
-```
-
-### 2.4 Infrastructure
+### 2.3 Infrastructure
 
 We are finally ready to provision the necessary cloud infrastructure. However, we also take responsibility to delete the infrastructure in this script (eventually we'll hand off the infrastructure lifecycle management to a framework like terraform)
 
-#### 2.4.1 Networking
+#### 2.3.1 Networking
 
 Provision a virtual network, using Azure Container Networking Interface (CNI).
 
@@ -1048,7 +1079,7 @@ Provision a virtual network, using Azure Container Networking Interface (CNI).
     VNET_NAME=${APP_NAME}-aks-vnet
     ```
 
-- `windows` (creates win/support/create_infra.bat)
+- `windows` (win/support/create_infra.bat)
 
 ```bat win/support/create_infra.bat
 
@@ -1086,7 +1117,7 @@ FOR /F "tokens=* USEBACKQ" %%g IN (`az network vnet subnet show \
     --query id -o tsv`) do (SET SUBNET_ID=%%g)
 ```
 
-- `*nix` (creates nix/support/create_infra.sh)
+- `*nix` (nix/support/create_infra.sh)
 
 ```sh nix/support/create_infra.sh
 
@@ -1124,7 +1155,7 @@ echo "${YELLOW}SUBNET_ID: ${CYAN}${SUBNET_ID}${NC}"
 
 ```
 
-#### 2.4.2 Azure Kubernetes Service (AKS)
+#### 2.3.2 Azure Kubernetes Service (AKS)
 
 - globals
   Extract resource names into globals.{sh|bat} to allow use in other lifecycle methods
@@ -1132,17 +1163,17 @@ echo "${YELLOW}SUBNET_ID: ${CYAN}${SUBNET_ID}${NC}"
   - `windows` (globals.bat)
     ```bat globals.bat
     set AKS_CLUSTER_NAME=%APP_NAME%-%STAGE%-aks
-    set KUBERNETES_NAMESPACE=%APP_NAME%
+    set K8S_NAMESPACE=%APP_NAME%
     ```
   - `*nix` (globals.sh)
     ```sh globals.sh
     AKS_CLUSTER_NAME=${APP_NAME}-${STAGE}-aks
-    KUBERNETES_NAMESPACE=${APP_NAME}
+    K8S_NAMESPACE=${APP_NAME}
     ```
 
 
 Create the AKS cluster
-- `windows` (creates win/support/create_infra.bat)
+- `windows` (win/support/create_infra.bat)
 
 ```bat win/support/create_infra.bat
 
@@ -1183,11 +1214,23 @@ FOR /F "tokens=* USEBACKQ" %%g IN (`az aks show \
     --name %AKS_CLUSTER_NAME%
     --output tsv`) do (SET AKS_CLUSTER_ID=%%g)
 
-echo "%YELLOW%AKS Cluster %AKS_CLUSTER_NAME%=%CYAN%%AKS_CLUSTER_ID%%NC%"
+if (%AKS_CLUSTER_ID% == '') (
+  echo "%RED%AKS_CLUSTER_ID not found%NC%"
+) else (
+  echo "%YELLOW%AKS_CLUSTER_NAME: %CYAN%%AKS_CLUSTER_NAME%%NC%"
+  echo "%YELLOW%AKS_CLUSTER_ID: %CYAN%%AKS_CLUSTER_ID%%NC%"
+)
+
+# retrieve cluster credentials and configure kubectl
+az aks get-credentials \
+    --resource-group $RESOURCE_GROUP \
+    --name $AKS_CLUSTER_NAME
+
+kubectl get nodes
 
 ```
 
-- `*nix` (creates nix/support/create_infra.sh)
+- `*nix` (nix/support/create_infra.sh)
 
 ```sh nix/support/create_infra.sh
 
@@ -1247,93 +1290,241 @@ else
   echo "${YELLOW}AKS_CLUSTER_ID: ${CYAN}${AKS_CLUSTER_ID}${NC}"
 fi
 
-```
-
-Once the AKS cluster is created, we'll test cluster connectivity
-
-- `windows` (creates win/support/create_infra.bat)
-
-```bat win/support/create_infra.bat
-
-echo "Check cluster connectivity"
-
-az aks get-credentials \
-    --resource-group $RESOURCE_GROUP \
-    --name $AKS_CLUSTER_NAME
-
-kubectl get nodes
-
-echo ""
-  
-```
-
-- `*nix` (creates nix/support/create_infra.sh)
-
-```sh nix/support/create_infra.sh
-
-echo "\nCheck cluster connectivity"
-
+# retrieve cluster credentials and configure kubectl
 TMP=$(az aks get-credentials \
     --resource-group $RESOURCE_GROUP \
     --name $AKS_CLUSTER_NAME)
 
 kubectl get nodes
 
-echo ""
 ```
 
-And then create a kubernetes namespace
+#### 2.3.3 Azure Container Registry (ACR)
 
-- `windows` (creates win/support/create_infra.bat)
+Azure Container Registry (ACR) is a managed Docker registry service based on the open-source Docker Registry 2.0. Container Registry is private and hosted in Azure. You use it to build, store, and manage images for all types of container deployments.
+
+Container images can be pushed and pulled with ACR by using the Docker CLI or the Azure CLI. You can use Azure portal integration to visually inspect the container images in the container registry. In distributed environments, the ACR geo-replication feature can be used to distribute container images to multiple Azure datacenters for localized distribution.
+
+- globals
+  Extract resource names into globals.{sh|bat} to allow use in other lifecycle methods
+
+  - `windows` (globals.bat)
+    ```bat globals.bat
+    set ACR_NAME=%APP_NAME%-%STAGE%-acr
+    ```
+  - `*nix` (globals.sh)
+    ```sh globals.sh
+    ACR_NAME=${APP_NAME}-${STAGE}-acr
+    ```
+  
+- `windows` (win/support/create_infra.bat)
 
 ```bat win/support/create_infra.bat
 
-rem fetch a list of available names spaces before we create anything.
-kubectl get namespace
+rem Check to see if the cluster already exists
+FOR /F "tokens=* USEBACKQ" %%g IN (`az acr show \
+    --name %ACR_NAME%
+    --output tsv`) do (SET PREV_ACR=%%g)
 
-rem create the name space
-kubectl create namespace %KUBERNETES_NAMESPACE%
+if (%PREV_ACR% == '') (
+  FOR /F "tokens=* USEBACKQ" %%g IN (`az acr create \
+      --resource-group %RESOURCE_GROUP% \
+      --location %REGION_NAME% \
+      --name %ACR_NAME% \
+      --sku Standard)
+  echo "%GREEN%Created new registry %ACR_NAME%%NC%"
+) else (
+  echo "Reusing existing registry %ACR_NAME%"
+)
 
-rem fetch list of available namespaces after to confirm
-kubectl get namespace
+echo "%YELLOW%ACR Registry %ACR_NAME%=%CYAN%%NC%"
 
 ```
 
-- `*nix` (creates nix/support/create_infra.sh)
+- `*nix` (nix/support/create_infra.sh)
 
 ```sh nix/support/create_infra.sh
-
-nsExists=$(kubectl get namespace ${KUBERNETES_NAMESPACE} 2>/dev/null || echo "create")
-if [[ $nsExists == 'create' ]]
+acrExists=$(az acr show \
+  --output tsv \
+  --query "id" \
+  --name ${ACR_NAME}  2>/dev/null || echo 'create')
+if [[ ${acrExists} == "create" ]]
 then
-  echo "Creating kubernetes namespace '${KUBERNETES_NAMESPACE}'"
-  # create the name space
-  kubectl create namespace ${KUBERNETES_NAMESPACE}
+  echo "Creating new ACR Registry ${ACR_NAME}"
+  start=$(date +"%D %T")
+  echo "Start: ${start}"
+  ACR=$(az acr create \
+    --resource-group $RESOURCE_GROUP \
+      --location $REGION_NAME \
+      --name $ACR_NAME \
+      --sku Standard )
+  end=$(date +"%D %T")
+  echo "End: ${end}"
+  if [[ $? == 0 ]]
+  then
+    echo "${GREEN}Created new ACR Registry ${ACR_NAME}${NC}"
+  fi
 else
-  echo "Reusing kubernetes namespace '${KUBERNETES_NAMESPACE}'"
+  echo "Reusing AKS Cluster ${ACR_NAME}" 
 fi
+# re-initialize CLUSTER_ID, in case we created it.
+ACR_ID=$(az acr show \
+  --output tsv \
+  --resource-group ${RESOURCE_GROUP} \
+  --name ${ACR_NAME} 2>/dev/null || echo "not-found");
+if [[ ${ACR_ID} == "not-found" ]]
+then
+  echo "${RED}ACR_NAME not found${NC}"
+else
+  echo "${YELLOW}ACR_NAME: ${CYAN}${ACR_NAME}${NC}"
+fi
+```
 
-# fetch list of available namespaces after to confirm
-echo "\nAvailable namespaces"
-kubectl get namespace 
+
+#### 2.3.4 Bind ACR and AKS
+We need to set up authentication between your container registry and Kubernetes cluster to allow communication between the services. The command below enables the ServicePrincipal authentication between the two resources.
+
+- `windows` (win/support/create_infra.bat)
+
+```bat win/support/create_infra.bat
+rem Allow our AKS_CLUSTER to talk to the ACR Registry
+az aks update \
+    --name $AKS_CLUSTER_NAME \
+    --resource-group $RESOURCE_GROUP \
+    --attach-acr $ACR_NAME
 
 ```
+
+- `*nix` (nix/support/create_infra.sh)
+
+```sh nix/support/create_infra.sh
+# Allow our AKS_CLUSTER to talk to the ACR Registry
+az aks update \
+    --name $AKS_CLUSTER_NAME \
+    --resource-group $RESOURCE_GROUP \
+    --attach-acr $ACR_NAME
+```
+
+
+#### 2.3.5  
+
+### 2.4 Build
+
+The build stage of the CD is only responsible for
+- building container images
+- publishing containers to appropriate registry.
+
+We assume the CI 'release' is 
+- a github release,
+- has one .tgz file per component 
+- includes a DockerFile
+
+- `windows` (win/support/app_build.bat)
+
+```bat win/support/app_build.bat
+echo "Because we need tag, gunzip and gzip,"
+echo "a windows equivalent is missing."
+echo "going forward, we'll have to rely on"
+echo "We rely on WSL and Github actions"
+echo "for the rest of the CD pipeline"
+exit -1
+
+```
+
+- `*nix` (nix/support/app_build.sh)
+
+```sh nix/support/app_build.sh
+# need a release tag and a branch name here.
+# download release tarball
+
+mkdir -p build-app
+cd build-app
+gh release download ${RELEASE} --repo ${GH_ORG}/${GH_REPO} 
+
+# build the API container
+tar -xvf bkstg.api.tgz
+cd packages/backend
+az acr build \
+    --resource-group ${RESOURCE_GROUP} \
+    --registry ${ACR_NAME} \
+    --image ${APP}-api:${RELEASE}
+cd ../..
+
+# build the UI container
+tar -xvf bkstg.ui.tgz
+cd packages/app
+az acr build \
+    --resource-group ${RESOURCE_GROUP} \
+    --registry ${ACR_NAME} \
+    --image ${APP}-ui:${RELEASE}
+cd ../..
+
+# list the images available in the registry.
+# allows verification in case something goes wrong
+az acr repository list \
+    --name $ACR_NAME \
+    --output table
+
+# we are in the build-app directory - move to parent.
+cd ..
+
+```
+
 
 ### 2.5. Configure Kubernetes
 
+The k8s configuration is an declarative specification,
+which is "applied" all together to obtain the final state.
+To provide visibility into the resources being created and/or
+of interest to us, we will fetch appropriate state from the
+deployment and print it. While not a true "validation" that the
+deployment was correct, it's an important trace for us to 
+understand/debug should something be amiss.
+
+Since any such "reading-of-state" has to happen after the apply,
+we'll construct a separate `validate-k8s.sh` script, that 
+is composed as we go along the subsections here.
+
 #### 2.5.1 Create
 
-- `windows` (creates win/support/create_kubernetes.bat)
-
-```bat win/support/create_kubernetes.bat
-
-```
-
-- `*nix` (creates nix/support/create_kubernetes.sh)
+##### AKS Credentials and kubectl
 
 ```sh nix/support/create_kubernetes.sh
+# retrieve cluster credentials and configure kubectl
+TMP=$(az aks get-credentials \
+    --resource-group $RESOURCE_GROUP \
+    --name $AKS_CLUSTER_NAME)
 
+kubectl get nodes
 ```
+
+From this point on, we'll
+
+##### Namespace
+
+- `*nix` (nix/support/create_kubernetes.sh)
+
+```sh nix/support/create_kubernetes.sh
+# Create namespace for project as a k8s resource
+  echo "
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ${K8S_NAMESPACE}
+" > ${NS_FILE}
+```
+
+###### Validation
+
+- `*nix` (nix/support/validate_k8s.sh)
+
+```sh nix/support/validate_k8s.sh
+
+# get namespaces
+kubectl get namespace
+echo Using namespace ${K8S_NAMESPACE}
+```
+
 
 #### 2.5.2 Api
 
@@ -1341,8 +1532,45 @@ kubectl get namespace
 
 - creates api-deployment.yml
 
-```yaml api-deployment.yml
-
+```sh nix/support/create_kubernetes.sh
+# generate api-deployment.yml - done as a shell script
+# to avoid using helm at this point.
+echo "
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${APP}-api
+spec:
+  selector:
+    matchLabels:
+      app: ${APP}-api
+  template:
+    metadata:
+      labels:
+        app: ${APP}-api # the label for the pods and the deployments
+    spec:
+      containers:
+      - name: ${APP}-api
+        image: ${ACR_NAME}.azurecr.io/${APP}-api:${RELEASE} 
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000 # the application listens to this port
+        resources:
+          requests: # minimum resources required
+            cpu: 250m
+            memory: 64Mi
+          limits: # maximum resources allocated
+            cpu: 500m
+            memory: 256Mi
+        readinessProbe: # is the container ready to receive traffic?
+          httpGet:
+            port: 3000
+            path: /healthz
+        livenessProbe: # is the container healthy?
+          httpGet:
+            port: 3000
+            path: /healthz
+" > ${SCRIPT_ROOT}/k8s/api-deployment.yml
 ```
 
 ##### 2.5.2.2 Service
@@ -1371,15 +1599,29 @@ kubectl get namespace
 
 ```
 
+#### 2.5.4 Apply and Verify
+
+- `*nix` 
+```sh
+
+# first apply the configuration
+kubectl apply
+
+# Now we can verify each step of the process.
+
+
+# 
+
+```
 ### 2.6. Deploy
 
-- `windows` (creates win/app_deploy.bat)
+- `windows` (win/app_deploy.bat)
 
 ```bat win/app_deploy.bat
 
 ```
 
-- `*nix` (creates nix/app_deploy.sh)
+- `*nix` (nix/app_deploy.sh)
 
 ```sh nix/app_deploy.sh
 
@@ -1420,7 +1662,7 @@ echo     "***************\n"
 ```bat win/support/destroy_all.bat
 
 rem FOR /F "tokens=* USEBACKQ" %%g IN (`az aks show \
-rem     --name %AKS_CLUSTER_NAME% \
+rem     --name %ACR_NAME% \
 rem     --output tsv`) do (SET AKS_CLUSTER_ID=%%g)
 rem
 rem if (%AKS_CLUSTER_ID% != '') (

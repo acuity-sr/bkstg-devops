@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.api.name }}
+immutable: true
+data:
+  backend:
+    listen:
+      port: {{ .Values.api.port }}
+    database: {{ .Values.api.database }}
+    cache: {{  .Values.api.cache }}
+  catalog:
+    locations: []
+    # {{- if .Values.api.demoData }}
+    # locations:
+    #     # Backstage example components
+    #     - type: github
+    #     target: https://github.com/backstage/backstage/blob/master/packages/catalog-model/examples/all-components.yaml
+    #     # Example component for github-actions
+    #     - type: github
+    #     target: https://github.com/backstage/backstage/blob/master/plugins/github-actions/examples/sample.yaml
+    #     # Example component for techdocs
+    #     - type: github
+    #     target: https://github.com/backstage/backstage/blob/master/plugins/techdocs-backend/examples/documented-component/documented-component.yaml
+    #     # Backstage example APIs
+    #     - type: github
+    #     target: https://github.com/backstage/backstage/blob/master/packages/catalog-model/examples/all-apis.yaml
+    #     # Backstage example templates
+    #     - type: github
+    #     target: https://github.com/backstage/backstage/blob/master/plugins/scaffolder-backend/sample-templates/all-templates.yaml
+    # {{- end }}
+  auth:
+    providers:
+      microsoft: null
+  scaffolder:
+    azure: null

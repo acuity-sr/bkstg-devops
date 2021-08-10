@@ -1,0 +1,18 @@
+# apiVersion: v1
+# kind: ConfigMap
+# metadata:
+#   name: {{ .Values.api.name }}
+# immutable: true
+# data:
+#   backend:
+#     listen:
+#       port: {{ .Values.api.port }}
+#     database: {{ .Values.api.database }}
+#     cache: {{ .Values.api.cache }}
+#   catalog:
+#     locations: []
+#   auth:
+#     providers:
+#       microsoft: null
+#   scaffolder:
+#     azure: null

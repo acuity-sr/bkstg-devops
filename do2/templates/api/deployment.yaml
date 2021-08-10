@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.api.name }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Values.api.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.api.name }} # the label for the pods and the deployments
+    spec:
+      containers:
+      - name: {{ .Values.api.name }}
+        image: {{ .Values.api.registry }}/{{ .Values.api.image}}:{{ .Values.api.releaseTag }} # IMPORTANT: update with your own repository
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: {{ .Values.api.port }} # the application listens to this port
+        # env:
+        # - name: MONGODB_URI # the application expects to find the MongoDB connection details in this environment variable
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: mongosecret # the name of the Kubernetes secret containing the data
+        #       key: MONGOCONNECTION # the key inside the Kubernetes secret containing the data
+        resources:
+          requests: # minimum resources required
+            cpu: 250m
+            memory: 64Mi
+          limits: # maximum resources allocated
+            cpu: 500m
+            memory: 256Mi
+        readinessProbe: # is the container ready to receive traffic?
+          httpGet:
+            port: {{ .Values.api.port }}
+            path: /healthcheck
+        livenessProbe: # is the container healthy?
+          httpGet:
+            port: {{ .Values.api.port }}
+            path: /healthcheck
+        volumeMounts:
+        - name: app-config
+          mountPath: "/app"
+          readOnly: true
+      volumes:
+      - name: app-config.yml
+        configMap: 
+          name: {{ .Values.api.name }}
+
+        

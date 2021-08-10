@@ -1,1 +1,14 @@
 node_modules
+build-app
+# .decrypted files are meant as a poor mans hack to 
+# extract temporary credentials for various CI/CD tasks.
+# The current implementation cleans it up, but errors 
+# sometimes leave these files dangling. We do NOT want
+# these commited, even when we error.
+*.decrypted
+
+# *.dat files store encrypted secrets. 
+# Within this repo, they are only meant as test files. 
+# So we ignore them. In an actual app repo, 
+*.dat
+

@@ -1,6 +1,7 @@
 {
     "cSpell.words": [
         "RBAC",
+        "azurecr",
         "bkstg",
         "decrpyted",
         "kubectl",
@@ -8,6 +9,7 @@
         "mgmt",
         "postgres",
         "rgba",
+        "sqlite",
         "vnet"
     ]
 }

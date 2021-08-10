@@ -1,0 +1,35 @@
+
+version: 1.0.0
+api:
+  name: bkstg-api
+  namespace: bkstg
+  port: 7000
+  registry: bkstg-api-dev-acr.azurecr.io
+  image: bkstg-api
+  releaseTag: main-e8a9764
+  database:
+    client: sqlite
+    connection: ':memory:'
+  cache:
+    store: memory
+  # hpa
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+ingress-nginx:
+  namespace: ingress
+  controller:
+    replicaCount: 2
+    nodeSelector: 
+      "beta.kubernetes.io/os": linux
+  defaultBackend:
+    nodeSelector: 
+      "beta.kubernetes.io/os": linux
+
+cert-manager:
+  namespace: cert-mngr
+
+
+externalIp: 10.1.1.1
