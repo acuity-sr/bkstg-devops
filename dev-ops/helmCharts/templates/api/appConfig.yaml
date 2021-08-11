@@ -1,18 +1,26 @@
-# apiVersion: v1
-# kind: ConfigMap
-# metadata:
-#   name: {{ .Values.api.name }}
-# immutable: true
-# data:
-#   backend:
-#     listen:
-#       port: {{ .Values.api.port }}
-#     database: {{ .Values.api.database }}
-#     cache: {{ .Values.api.cache }}
-#   catalog:
-#     locations: []
-#   auth:
-#     providers:
-#       microsoft: null
-#   scaffolder:
-#     azure: null
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.api.name }}
+immutable: true
+data:
+  app-config.yaml: |-
+    app:
+      title: {{ .Values.app.name }}
+      baseUrl: {{ .Values.app.baseUrl }}
+
+    backend:
+      baseUrl: {{ .Values.api.baseUrl }}
+      listen:
+        port: {{ .Values.api.port }}
+      database:
+        {{ .Values.api.database | toYaml |  indent 8 | trim }}
+      cache:
+        {{ toYaml .Values.api.cache | indent 8 | trim }}
+    catalog:
+      locations: []
+    auth:
+      providers:
+        microsoft: null
+    scaffolder:
+      azure: null

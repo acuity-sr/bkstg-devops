@@ -13,7 +13,7 @@ spec:
     spec:
       containers:
       - name: {{ .Values.api.name }}
-        image: {{ .Values.api.registry }}/{{ .Values.api.image}}:{{ .Values.api.releaseTag }} # IMPORTANT: update with your own repository
+        image: {{ .Values.api.registry }}/{{ .Values.api.imageRepository }}:{{ .Values.api.releaseTag }}
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: {{ .Values.api.port }} # the application listens to this port

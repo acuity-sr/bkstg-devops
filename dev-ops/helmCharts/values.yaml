@@ -1,14 +1,19 @@
 
 version: 1.0.0
+app:
+  name: Acuity Backstage
+  baseUrl: http://localhost:3000
+
 api:
   name: bkstg-api
   namespace: bkstg
-  port: 7000
-  registry: bkstg-api-dev-acr.azurecr.io
-  image: bkstg-api
-  releaseTag: main-e8a9764
+  port: 8000
+  baseUrl: http://localhost:8000
+  registry: AcuityBkstgAcrSR.azurecr.io
+  imageRepository: bkstg-main-eastus-api
+  releaseTag: main-2ba5de9
   database:
-    client: sqlite
+    client: sqlite3
     connection: ':memory:'
   cache:
     store: memory
