@@ -9,15 +9,16 @@ mkdir -p build-app
 cd build-app
 gh release download ${RELEASE} --repo ${GH_ORG}/${GH_REPO} 
 
+echo "RELEASE=${RELEASE} STAGE=${STAGE}"
 # build the API container
 
-API_REPOSITORY=${APP_NAME}-api
-API_IMAGE=${API_REPOSITORY}:${RELEASE}
+API_REPOSITORY=${APP_NAME}
+API_IMAGE=${API_REPOSITORY}-api:${RELEASE}
 API_IMAGE_EXISTS=$(az acr repository show-tags \
   --output tsv \
   --name ${ACR_NAME} \
   --repository ${API_REPOSITORY} \
-  --query "[?contains(@, '${RELEASE}')]" || echo "not-found");
+  --query "[?contains(@, '${RELEASE}')]" | echo "not-found")
 echo ${API_IMAGE_EXISTS}
 echo ${API_IMAGE}
 if [[ ${API_IMAGE_EXISTS} == "not-found" ]]
@@ -29,6 +30,7 @@ then
     tar -xf bkstg.api.tgz
     tar -xf packages/backend/dist/skeleton.tar.gz
     tar -xf packages/backend/dist/bundle.tar.gz
+    cp app-config.yaml packages/backend/app-config.yaml
     cd packages/backend
     az acr build .\
         --resource-group ${RESOURCE_GROUP} \
@@ -37,7 +39,7 @@ then
     cd ../..
 
     end=$(date +"%D %T")
-    echo "End: ${end} (start: ${start})"
+    echo "${PURPLE}End: ${end} (start: ${start})${NC}"
 else
     echo "Reusing existing API Image ${API_IMAGE}"
 fi
@@ -49,14 +51,13 @@ az acr repository show-tags \
   --repository ${API_REPOSITORY}
 echo ""
 
-
 UI_REPOSITORY=${APP_NAME}-ui
 UI_IMAGE=${UI_REPOSITORY}:${RELEASE}
 UI_IMAGE_EXISTS=$(az acr repository show-tags \
   --output tsv \
   --name ${ACR_NAME} \
   --repository ${UI_REPOSITORY} \
-  --query "[?contains(@, '${RELEASE}')]" || echo "not-found");
+  --query "[?contains(@, '${RELEASE}')]" | echo "not-found")
 if [[ ${UI_IMAGE_EXISTS} == "not-found" ]]
 then
     # build the UI container
@@ -74,7 +75,7 @@ then
     set +x
 
     end=$(date +"%D %T")
-    echo "End: ${end} (start: ${start})"
+    echo "${PURPLE}End: ${end} (start: ${start})${NC}"
 else
     echo "Reusing existing UI Image ${UI_IMAGE}"
 fi

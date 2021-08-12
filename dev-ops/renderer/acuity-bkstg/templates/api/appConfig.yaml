@@ -1,0 +1,29 @@
+---
+# Source: acuity-bkstg/templates/api/appConfig.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bkstg-api
+immutable: true
+data:
+  app-config.yaml: |-
+    app:
+      title: Acuity Backstage
+      baseUrl: http://localhost:3000
+
+    backend:
+      baseUrl: http://localhost:8000
+      listen:
+        port: 8000
+      database:
+        client: sqlite3
+        connection: ':memory:'
+      cache:
+        store: memory
+    catalog:
+      locations: []
+    auth:
+      providers:
+        microsoft: null
+    scaffolder:
+      azure: null

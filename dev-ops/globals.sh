@@ -1,10 +1,10 @@
 #!/usr/bin/env sh
 # required
 GH_ORG=acuity-sr
-GH_REPO=bkstg
+GH_REPO=bkstg-one
 
 RELEASE=${RELEASE:?}
-STAGE=${STAGE:-'dev'}
+STAGE=${STAGE:-'main'}
 REGION_NAME=${REGION_NAME:-'eastus'}
 
 echo "${RELEASE} ${STAGE} ${REGION_NAME}"
@@ -54,7 +54,13 @@ VNET_NAME=${APP_NAME}-aks-vnet
 AKS_CLUSTER_NAME=${APP_NAME}-${STAGE}-aks
 KUBERNETES_NAMESPACE=${APP_NAME}
 
-# ACR_NAME must conform to '^[a-zA-Z0-9]*$' and length > 5
+# this is what we'd have liked:
 # since we only have one per RG, we'll just call it acr and move along.
 # ACR_NAME=${APP_NAME}-${STAGE}-acr
-ACR_NAME=AcuityBkstgAcrSR
+
+# this is what we got:
+# ACR_NAME must conform to '^[a-zA-Z0-9]*$' and length > 5
+ACR_NAME=acuitybkstgacrsr
+
+BKSTG_REPOSITORY=${APP_NAME}
+BKSTG_IMAGE=${BKSTG_REPOSITORY}:${RELEASE}

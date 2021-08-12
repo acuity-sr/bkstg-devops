@@ -1891,3 +1891,10 @@ These are a list of enhancements to be worked upon in next iterations
 - [ ] `Azure Key Vault` to store secrets
 - [ ] `terraform`` for infrastructure specification and deployment
 - [ ] human-in-the-loop to prevent accidental delete/destroy of production setups
+
+
+
+## Links/References
+
+[Debugging CrashLoopBackoffs with Init-Containers](https://medium.com/kokster/debugging-crashloopbackoffs-with-init-containers-26f79e9fb5bf)
+[ConfigMap to mount files in pod](https://carlos.mendible.com/2019/02/10/kubernetes-mount-file-pod-with-configmap/)

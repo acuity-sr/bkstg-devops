@@ -1,22 +1,24 @@
+---
+# Source: acuity-bkstg/templates/api/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Values.api.name }}
+  name: bkstg-api
 spec:
   selector:
     matchLabels:
-      app: {{ .Values.api.name }}
+      app: bkstg-api
   template:
     metadata:
       labels:
-        app: {{ .Values.api.name }} # the label for the pods and the deployments
+        app: bkstg-api # the label for the pods and the deployments
     spec:
       containers:
-      - name: {{ .Values.api.name }}
-        image: {{ .Values.api.registry }}/{{ .Values.api.imageRepository }}:{{ .Values.api.releaseTag }}
+      - name: bkstg-api
+        image: AcuityBkstgAcrSR.azurecr.io/bkstg-main-eastus-api:main-1c2fa24
         imagePullPolicy: IfNotPresent
         ports:
-        - containerPort: {{ .Values.api.port }} # the application listens to this port
+        - containerPort: 8000 # the application listens to this port
         # env:
         # - name: MONGODB_URI # the application expects to find the MongoDB connection details in this environment variable
         #   valueFrom:
@@ -32,19 +34,17 @@ spec:
             memory: 256Mi
         readinessProbe: # is the container ready to receive traffic?
           httpGet:
-            port: {{ .Values.api.port }}
+            port: 8000
             path: /healthcheck
         livenessProbe: # is the container healthy?
           httpGet:
-            port: {{ .Values.api.port }}
+            port: 8000
             path: /healthcheck
-      #   volumeMounts:
-      #   - name: app-config
-      #     mountPath: "/app"
-      #     subPath: "app-config.yaml"
-      #     readOnly: true
-      # volumes:
-      # - name: app-config
-      #   configMap: 
-      #     name: {{ .Values.api.name }}
-        
+        volumeMounts:
+        - name: app-config
+          mountPath: "/app"
+          readOnly: true
+      volumes:
+      - name: app-config
+        configMap: 
+          name: bkstg-api

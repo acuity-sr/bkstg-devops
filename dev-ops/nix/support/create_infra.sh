@@ -68,7 +68,7 @@ then
     --docker-bridge-address 172.17.0.1/16 \
     --generate-ssh-keys )
   end=$(date +"%D %T")
-  echo "End: ${end}"
+  echo "${PURPLE}End: ${end} (start: ${start})${NC}"
   if [[ $? == 0 ]]
   then
     echo "${GREEN}Created new AKS Cluster ${AKS_CLUSTER_NAME}${NC}"
@@ -118,7 +118,7 @@ then
       --name $ACR_NAME \
       --sku Standard )
   end=$(date +"%D %T")
-  echo "End: ${end}"
+  echo "${PURPLE}End: ${end} (start: ${start})${NC}"
   if [[ $? == 0 ]]
   then
     echo "${GREEN}Created new ACR Registry ${ACR_NAME}${NC}"
@@ -139,7 +139,11 @@ else
 fi
 
 echo "\nAttach acr:${ACR_NAME} to aks-cluster:${AKS_CLUSTER_NAME}"
+start=$(date +"%D %T")
+echo "Start: ${start}"
 TMP=$(az aks update \
     --name $AKS_CLUSTER_NAME \
     --resource-group $RESOURCE_GROUP \
     --attach-acr $ACR_NAME)
+end=$(date +"%D %T")
+echo "${PURPLE}End: ${end} (start: ${start})${NC}"

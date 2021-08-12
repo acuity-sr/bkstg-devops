@@ -4,14 +4,17 @@ app:
   name: Acuity Backstage
   baseUrl: http://localhost:3000
 
+organization:
+  name: Acuity
+
 api:
   name: bkstg-api
   namespace: bkstg
-  port: 8000
-  baseUrl: http://localhost:8000
-  registry: AcuityBkstgAcrSR.azurecr.io
-  imageRepository: bkstg-main-eastus-api
-  releaseTag: main-2ba5de9
+  port: 7000
+  baseUrl: http://localhost:7000
+  registry: acuitybkstgacrsr.azurecr.io
+  imageRepository: bkstg-one-trial-eastus
+  releaseTag: trial-6e79109
   database:
     client: sqlite3
     connection: ':memory:'

@@ -9,4 +9,4 @@ spec:
   - protocol: TCP
     port: 80
     targetPort: {{ .Values.api.port }}
-  type: ClusterIP
+  type: LoadBalancer
