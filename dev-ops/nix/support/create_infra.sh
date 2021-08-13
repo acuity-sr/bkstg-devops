@@ -138,6 +138,7 @@ else
   echo "${YELLOW}ACR_NAME: ${CYAN}${ACR_NAME}${NC}"
 fi
 
+
 echo "\nAttach acr:${ACR_NAME} to aks-cluster:${AKS_CLUSTER_NAME}"
 start=$(date +"%D %T")
 echo "Start: ${start}"
