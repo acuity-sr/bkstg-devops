@@ -37,18 +37,13 @@ function main(fname, password) {
 
 if (require.main === module) {
   const fname = process.argv[2];
-  const envPassword = process.env.ACUITY_SECRET;
-  if (envPassword) {
-    main(fname, envPassword);
-  } else {
-    read(
-      {
-        prompt: `Decrypting file '${fname}'\npassword:`,
-        silent: true,
-        replace: "*",
-        default: "",
-      },
-      (password) => main(fname, password)
-    );
-  }
+  read(
+    {
+      prompt: `Decrypting file '${fname}'\npassword:`,
+      silent: true,
+      replace: "*",
+      default: "",
+    },
+    (password) => main(fname, password)
+  );
 }

@@ -34,18 +34,25 @@
       - [2.2.3 Azure Active Directory Application](#223-azure-active-directory-application)
       - [2.2.4 Service Principal](#224-service-principal)
       - [2.2.5 Bootstrap trailer](#225-bootstrap-trailer)
-    - [2.3 Build](#23-build)
-    - [2.4 Infrastructure](#24-infrastructure)
-      - [2.4.1 Networking](#241-networking)
-      - [2.4.2 Azure Kubernetes Service (AKS)](#242-azure-kubernetes-service-aks)
+    - [2.3 Infrastructure](#23-infrastructure)
+      - [2.3.1 Networking](#231-networking)
+      - [2.3.2 Azure Kubernetes Service (AKS)](#232-azure-kubernetes-service-aks)
+      - [2.3.3 Azure Container Registry (ACR)](#233-azure-container-registry-acr)
+      - [2.3.4 Bind ACR and AKS](#234-bind-acr-and-aks)
+      - [2.3.5](#235)
+    - [2.4 Build](#24-build)
     - [2.5. Configure Kubernetes](#25-configure-kubernetes)
       - [2.5.1 Create](#251-create)
+        - [AKS Credentials and kubectl](#aks-credentials-and-kubectl)
+        - [Namespace](#namespace)
+          - [Validation](#validation)
       - [2.5.2 Api](#252-api)
         - [2.5.2.1 Deployment](#2521-deployment)
         - [2.5.2.2 Service](#2522-service)
       - [2.5.3 UI](#253-ui)
         - [2.5.3.1 Deployment](#2531-deployment)
         - [2.5.3.2 Service](#2532-service)
+      - [2.5.4 Apply and Verify](#254-apply-and-verify)
     - [2.6. Deploy](#26-deploy)
     - [2.7 Destroy](#27-destroy)
       - [AKS (destroy)](#aks-destroy)
@@ -53,6 +60,7 @@
       - [Bootstrap (destroy)](#bootstrap-destroy)
     - [2.8 Read](#28-read)
   - [TODO](#todo)
+  - [Links/References](#linksreferences)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -77,146 +85,10 @@ across the various OS', and require you to personally tend to them.
 
 Welcome back!
 
-## 0.2 Create the backstage-app
+## 0.2 An app to build and deploy
+This project was born out of a need to create and deploy a custom [backstage](https://backstage.io) app.
 
-This is likely only needed if restarting the project from scratch. In all likelihood, you are working with an already created app and a `git clone` of
-the repo.
-
-### Creating the backstage app 
-For the sake of completeness, if you need to start from scratch, run the following command to create a new backstage-app.
-
-```null
-# create the backstage app
-npx @backstage/create-app
-# answer the questions.
-# - we'll call the app `bkstg` 
-# - Use `sqLite` if in doubt.
-# - Production will use `postgres`
-```
-Creates a directory structure that looks like this.
-
-```null
-bkstg
-└── packages
-    ├── app       # the front-end/web-ui
-    └── backend   # the api server - this connects to a database.
-```
-
-This step also performs a `yarn install` - which takes a bit to complete.
-
-![time sink](./docs/images/time-passing.gif)
-
-If you find yourself contemplating the end-of-time, instead consider jumping ahead to the next section.
-
-### Setup and initialize git repository
-Once the `yarn install` is completed, we'll configure a git repo in there
-
-- `windows` (win/create_bkstg.bat)
-```bat win/create_bkstg.bat
-cd bkstg
-git init
-echo node_modules >> .gitignore
-echo dist >> .gitignore
-git add .
-git commit -m "feat: initial commit"
-```
-
-- `*nix` (nix/create_bkstg.sh)
-```sh nix/create_bkstg.sh
-cd bkstg
-git init
-echo node_modules >> .gitignore
-echo dist >> .gitignore
-git add .
-git commit -m "feat: initial commit"
-```
-
-### Customize & Adapt the app
-Customizing the backstage app requires two things: 
-1. Customizing files created by the `npx @backstage/create-app` command.
-2. Add files to enable the workflow needed. 
-
-
-#### Customizations
-The customizations are hard to automate, so we list them below and require you to 
-make them manually.
-
-   - `bkstg/app-config.yml`
-
-```diff bkstg/patch.txt
---- a/app-config.yml
-+++ b/app-config.yml
-@@ -1,9 +1,9 @@
- app:
--  title: Scaffolded Backstage App
-+  title: Acuity Backstage
-   baseUrl: http://localhost:3000
-
- organization:
--  name: My Company
-+  name: Acuity
-```
-  - `bkstg/package.json`
-
-```diff bkstg/patch.txt
---- a/package.json
-+++ b/package.json
-@@ -1,5 +1,5 @@
- {
--  "name": "root",
-+  "name": "@acuity-sr/bkstg-monorepo",
-   "version": "1.0.0",
-   "private": true,
-```
-
-  - `bkstg/packages/app/package.json`
-
-```diff bkstg/patch.txt
---- a/packages/app/package.json
-+++ b/packages/app/package.json
-@@ -1,5 +1,5 @@
- {
--  "name": "app",
-+  "name": "@acuity-sr/bkstg-ui",
-   "version": "0.0.0",
-   "private": true,
-   "bundled": true,
-```
-
-  - `bkstg/packages/backend/package.json`
-  
-```diff bkstg/patch.txt
---- a/packages/backend/package.json
-+++ b/packages/backend/package.json
-@@ -1,5 +1,5 @@
- {
--  "name": "backend",
-+  "name": "@acuity-sr/bkstg-api",
-   "version": "0.0.0",
-   "main": "dist/index.cjs.js",
-   "types": "src/index.ts",
-@@ -17,7 +17,7 @@
-     "migrate:create": "knex migrate:make -x ts"
-   },
-   "dependencies": {
--    "app": "0.0.0",
-+    "@acuity-sr/bkstg-ui": "0.0.0",
-```
-
-#### Additions
-````Docker bkstg/app/DockerFile
-````
-
-### 0.2.2 Configuring the backstage app
-The backstage app as created and used per documentation, does not utilize npm versions
-or an npm-repository. Since we want to model best production behavior, we'll publish
-both the `app`/`backend` as backstage calls them, but `ui`/`api` as we call them in this
-document as npm modules to the github npm package registry.
-
-We'll use github actions to run a CI process. 
-We'll also use github actions to implement a CD process based on the rest of this document.
-
-Before we can do that, we need to configure the default backstage repo to ensure all of this works.
+While it is beyond the scope of this document to get into specifics, a [reference implementation](https://github.com/acuity-sr/bkstg-one) provides an app for us to work with here, while also documenting the steps needed to create a backstage app
 
 
 

@@ -1,5 +1,9 @@
 #!/usr/bin/env sh
 
+# command line parameters
+STAGE=${1}
+RELEASE="Don't care"
+
 DEVOPS_SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
 set USE_CASE=destroy

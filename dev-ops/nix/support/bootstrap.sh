@@ -38,17 +38,16 @@ rgExists=$(az group exists -n ${RESOURCE_GROUP})
 if [[ ${rgExists} == 'true' ]];
 then
   echo "Reusing existing resource group '${RESOURCE_GROUP}'"
-else
-# elif [[ "${USE_CASE}" == "create" ]]
-# then
+elif [[ "${USE_CASE}" == "create" ]]
+then
   echo "Creating resource-group '${RESOURCE_GROUP}' ${REGION_NAME}"
   # echo "az group create --name ${RESOURCE_GROUP} --location ${REGION_NAME}"
   # trap return value of next command & discard. bash seems to treat it as an error.
   JUNK=$(az group create --name ${RESOURCE_GROUP} --location ${REGION_NAME})
   unset JUNK
-# else
-#   echo "${RED} ERROR: Can only create ResourceGroup with USE_CASE=create, not ${USE_CASE}${NC}"
-#   exit -1
+else
+  echo "${RED} ERROR: Can only create ResourceGroup with USE_CASE=create, not ${USE_CASE}${NC}"
+  exit -1
 fi
 
 

@@ -1,13 +1,17 @@
 #!/usr/bin/env sh
-# required
+# required - hard coded per repo/project
 GH_ORG=acuity-sr
-GH_REPO=bkstg-one
+GH_REPO=acuity-bkstg
 
-RELEASE=${RELEASE:?}
-STAGE=${STAGE:-'main'}
-REGION_NAME=${REGION_NAME:-'eastus'}
+# also required, but can be set in a calling script,
+# allowing a CD script to customize these if needed.
 
-echo "${RELEASE} ${STAGE} ${REGION_NAME}"
+# RELEASE & STAGE are specified by CD script.
+# modify to allow default values if that makes sense.
+
+RELEASE=${RELEASE:?} # error if not specified globally.
+STAGE=${STAGE:?}     # error if not specified globally.
+REGION_NAME=${REGION_NAME:-'eastus'} # default = 'eastus'
 
 # optional
 SUBSCRIPTION_ID=d8f43804-1ed0-4f0d-b26d-77e8e11e86fd
@@ -16,6 +20,7 @@ SUBSCRIPTION_ID=d8f43804-1ed0-4f0d-b26d-77e8e11e86fd
 # It's used as a prefix for all resources
 # (even the ResourceGroup) created.
 APP_NAME=${GH_REPO}-${STAGE}-${REGION_NAME}
+APP=${GH_REPO}
 
 
 # debug controls
@@ -39,6 +44,9 @@ CYAN='\033[0;36m'
 # NO_COLOR
 NC="\033[0m"
 
+# "generated" globals
+
+
 
 RESOURCE_GROUP=${APP_NAME}-rg
 
@@ -52,15 +60,8 @@ VNET_NAME=${APP_NAME}-aks-vnet
 
 
 AKS_CLUSTER_NAME=${APP_NAME}-${STAGE}-aks
-KUBERNETES_NAMESPACE=${APP_NAME}
+K8S_NAMESPACE=${APP_NAME}
 
-# this is what we'd have liked:
-# since we only have one per RG, we'll just call it acr and move along.
-# ACR_NAME=${APP_NAME}-${STAGE}-acr
 
-# this is what we got:
-# ACR_NAME must conform to '^[a-zA-Z0-9]*$' and length > 5
-ACR_NAME=acuitybkstgacrsr
+ACR_NAME=${APP_NAME}-${STAGE}-acr
 
-BKSTG_REPOSITORY=${APP_NAME}
-BKSTG_IMAGE=${BKSTG_REPOSITORY}:${RELEASE}

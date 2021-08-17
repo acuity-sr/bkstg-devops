@@ -71,31 +71,47 @@ FOR /F "tokens=* USEBACKQ" %%g IN (`az aks show \
     --name %AKS_CLUSTER_NAME%
     --output tsv`) do (SET AKS_CLUSTER_ID=%%g)
 
-echo "%YELLOW%AKS Cluster %AKS_CLUSTER_NAME%=%CYAN%%AKS_CLUSTER_ID%%NC%"
+if (%AKS_CLUSTER_ID% == '') (
+  echo "%RED%AKS_CLUSTER_ID not found%NC%"
+) else (
+  echo "%YELLOW%AKS_CLUSTER_NAME: %CYAN%%AKS_CLUSTER_NAME%%NC%"
+  echo "%YELLOW%AKS_CLUSTER_ID: %CYAN%%AKS_CLUSTER_ID%%NC%"
+)
 
-
-
-
-echo "Check cluster connectivity"
-
+# retrieve cluster credentials and configure kubectl
 az aks get-credentials \
     --resource-group $RESOURCE_GROUP \
     --name $AKS_CLUSTER_NAME
 
 kubectl get nodes
 
-echo ""
-  
 
 
 
-rem fetch a list of available names spaces before we create anything.
-kubectl get namespace
+rem Check to see if the cluster already exists
+FOR /F "tokens=* USEBACKQ" %%g IN (`az acr show \
+    --name %ACR_NAME%
+    --output tsv`) do (SET PREV_ACR=%%g)
 
-rem create the name space
-kubectl create namespace %KUBERNETES_NAMESPACE%
+if (%PREV_ACR% == '') (
+  FOR /F "tokens=* USEBACKQ" %%g IN (`az acr create \
+      --resource-group %RESOURCE_GROUP% \
+      --location %REGION_NAME% \
+      --name %ACR_NAME% \
+      --sku Standard)
+  echo "%GREEN%Created new registry %ACR_NAME%%NC%"
+) else (
+  echo "Reusing existing registry %ACR_NAME%"
+)
 
-rem fetch list of available namespaces after to confirm
-kubectl get namespace
+echo "%YELLOW%ACR Registry %ACR_NAME%=%CYAN%%NC%"
+
+
+
+rem Allow our AKS_CLUSTER to talk to the ACR Registry
+az aks update \
+    --name $AKS_CLUSTER_NAME \
+    --resource-group $RESOURCE_GROUP \
+    --attach-acr $ACR_NAME
 
 

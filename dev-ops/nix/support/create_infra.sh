@@ -68,13 +68,14 @@ then
     --docker-bridge-address 172.17.0.1/16 \
     --generate-ssh-keys )
   end=$(date +"%D %T")
-  echo "${PURPLE}End: ${end} (start: ${start})${NC}"
+  echo "End: ${end}"
+else
+  echo "Reusing AKS Cluster ${AKS_CLUSTER_NAME}"
+  
   if [[ $? == 0 ]]
   then
     echo "${GREEN}Created new AKS Cluster ${AKS_CLUSTER_NAME}${NC}"
   fi
-else
-  echo "${GREEN}Reusing AKS Cluster ${AKS_CLUSTER_NAME}${NC}"  
 fi
 # re-initialize CLUSTER_ID, in case we created it.
 AKS_CLUSTER_ID=$(az aks show \
@@ -84,24 +85,20 @@ AKS_CLUSTER_ID=$(az aks show \
   --name ${AKS_CLUSTER_NAME} 2>/dev/null || echo "not-found");
 if [[ ${AKS_CLUSTER_ID} == "not-found" ]]
 then
-  echo "${RED}AKS_CLUSTER_NAME not found${NC}"
+  echo "${RED}AKS_CLUSTER_ID not found${NC}"
 else
   echo "${YELLOW}AKS_CLUSTER_NAME: ${CYAN}${AKS_CLUSTER_NAME}${NC}"
+  echo "${YELLOW}AKS_CLUSTER_ID: ${CYAN}${AKS_CLUSTER_ID}${NC}"
 fi
 
-
-
-
-echo "\nCheck cluster connectivity"
-
+# retrieve cluster credentials and configure kubectl
 TMP=$(az aks get-credentials \
-    --overwrite-existing \
     --resource-group $RESOURCE_GROUP \
     --name $AKS_CLUSTER_NAME)
 
 kubectl get nodes
 
-echo ""
+
 
 acrExists=$(az acr show \
   --output tsv \
@@ -118,13 +115,13 @@ then
       --name $ACR_NAME \
       --sku Standard )
   end=$(date +"%D %T")
-  echo "${PURPLE}End: ${end} (start: ${start})${NC}"
+  echo "End: ${end}"
   if [[ $? == 0 ]]
   then
     echo "${GREEN}Created new ACR Registry ${ACR_NAME}${NC}"
   fi
 else
-  echo "Reusing ACR Registry ${ACR_NAME}" 
+  echo "Reusing AKS Cluster ${ACR_NAME}" 
 fi
 # re-initialize CLUSTER_ID, in case we created it.
 ACR_ID=$(az acr show \
@@ -139,12 +136,9 @@ else
 fi
 
 
-echo "\nAttach acr:${ACR_NAME} to aks-cluster:${AKS_CLUSTER_NAME}"
-start=$(date +"%D %T")
-echo "Start: ${start}"
-TMP=$(az aks update \
+# Allow our AKS_CLUSTER to talk to the ACR Registry
+az aks update \
     --name $AKS_CLUSTER_NAME \
     --resource-group $RESOURCE_GROUP \
-    --attach-acr $ACR_NAME)
-end=$(date +"%D %T")
-echo "${PURPLE}End: ${end} (start: ${start})${NC}"
+    --attach-acr $ACR_NAME
+

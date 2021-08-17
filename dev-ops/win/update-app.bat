@@ -1,4 +1,8 @@
 
+rem command line parameters
+set STAGE=%1
+set RELEASE=%2
+
 rem initialize script dir (via https://stackoverflow.com/a/36351656)
 pushd %~dp0
 set DEVOPS_SCRIPT_DIR=%CD%

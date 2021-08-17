@@ -5,7 +5,7 @@ echo     "***************\n"
 
 
 rem FOR /F "tokens=* USEBACKQ" %%g IN (`az aks show \
-rem     --name %AKS_CLUSTER_NAME% \
+rem     --name %ACR_NAME% \
 rem     --output tsv`) do (SET AKS_CLUSTER_ID=%%g)
 rem
 rem if (%AKS_CLUSTER_ID% != '') (
